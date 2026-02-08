@@ -1,0 +1,391 @@
+{
+  "contract_name": "identity_plane_mcp_contract",
+  "plane": "identity",
+  "version": "0.1.0",
+  "ontology_version": "0.1",
+  "rules": [
+    "Every response MUST include coverage_report (overall_status may be unknown).",
+    "Every response MAY include entities/events/relationships; empty arrays are allowed.",
+    "All ActionEvent objects MUST include raw_refs (use empty array for synthetic/derived events).",
+    "Domain-specific objects MUST appear only as Entity(entity_type=business_object, kind=...) via Knowledge Pack extensions."
+  ],
+  "$defs": {
+    "tlp_marking": {
+      "type": "string",
+      "enum": ["RED", "AMBER", "AMBER_STRICT", "GREEN", "CLEAR"]
+    },
+    "ref": {
+      "type": "object",
+      "required": ["ref_type", "system", "value"],
+      "properties": {
+        "ref_type": { "type": "string" },
+        "system": { "type": "string" },
+        "value": { "type": "string" },
+        "url": { "type": "string" },
+        "observed_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "time_range": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "entity": {
+      "type": "object",
+      "required": ["id", "tlp", "entity_type", "kind", "display_name"],
+      "properties": {
+        "id": { "type": "string" },
+        "tlp": { "$ref": "#/$defs/tlp_marking" },
+        "entity_type": {
+          "type": "string",
+          "enum": [
+            "principal",
+            "credential",
+            "session",
+            "resource",
+            "tenant",
+            "network_endpoint",
+            "device",
+            "business_object",
+            "case_artifact"
+          ]
+        },
+        "kind": { "type": "string" },
+        "display_name": { "type": "string" },
+        "refs": { "type": "array", "items": { "$ref": "#/$defs/ref" } },
+        "attributes": { "type": "object" },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "last_seen": { "type": "string", "format": "date-time" },
+        "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+      },
+      "additionalProperties": false
+    },
+    "action_event": {
+      "type": "object",
+      "required": ["id", "tlp", "plane", "ts", "action", "actor", "targets", "outcome", "raw_refs"],
+      "properties": {
+        "id": { "type": "string" },
+        "tlp": { "$ref": "#/$defs/tlp_marking" },
+        "plane": { "type": "string" },
+        "ts": { "type": "string", "format": "date-time" },
+        "action": { "type": "string" },
+        "actor": {
+          "type": "object",
+          "required": ["actor_entity_id"],
+          "properties": {
+            "actor_entity_id": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["target_entity_id"],
+            "properties": {
+              "target_entity_id": { "type": "string" },
+              "role": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "outcome": { "type": "string", "enum": ["succeeded", "failed", "unknown"] },
+        "context": { "type": "object" },
+        "related_entity_ids": { "type": "array", "items": { "type": "string" } },
+        "raw_refs": { "type": "array", "items": { "$ref": "#/$defs/ref" } },
+        "ingested_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["id", "tlp", "plane", "relationship_type", "from_entity_id", "to_entity_id"],
+      "properties": {
+        "id": { "type": "string" },
+        "tlp": { "$ref": "#/$defs/tlp_marking" },
+        "plane": { "type": "string" },
+        "relationship_type": { "type": "string" },
+        "from_entity_id": { "type": "string" },
+        "to_entity_id": { "type": "string" },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "last_seen": { "type": "string", "format": "date-time" },
+        "evidence_refs": { "type": "array", "items": { "$ref": "#/$defs/ref" } }
+      },
+      "additionalProperties": false
+    },
+    "coverage_report": {
+      "type": "object",
+      "required": ["id", "tlp", "plane", "time_range", "overall_status", "sources"],
+      "properties": {
+        "id": { "type": "string" },
+        "tlp": { "$ref": "#/$defs/tlp_marking" },
+        "plane": { "type": "string" },
+        "time_range": { "$ref": "#/$defs/time_range" },
+        "overall_status": { "type": "string", "enum": ["complete", "partial", "missing", "unknown"] },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source_name", "status"],
+            "properties": {
+              "source_name": { "type": "string" },
+              "status": { "type": "string", "enum": ["complete", "partial", "missing", "unknown"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "missing_fields": { "type": "array", "items": { "type": "string" } },
+        "data_latency_seconds": { "type": "number" },
+        "quality_flags": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "response_envelope": {
+      "type": "object",
+      "required": ["plane", "coverage_report", "entities", "events", "relationships"],
+      "properties": {
+        "plane": { "type": "string", "const": "identity" },
+        "coverage_report": { "$ref": "#/$defs/coverage_report" },
+        "entities": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+        "events": { "type": "array", "items": { "$ref": "#/$defs/action_event" } },
+        "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+        "next_page_token": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "tools": [
+    {
+      "name": "describe_plane",
+      "description": "Return identity plane capabilities and a coverage_report for 'now' (may be unknown).",
+      "request_schema": { "type": "object", "properties": {}, "additionalProperties": false },
+      "response_schema": {
+        "type": "object",
+        "required": ["plane", "version", "coverage_report", "capabilities"],
+        "properties": {
+          "plane": { "type": "string", "const": "identity" },
+          "version": { "type": "string" },
+          "coverage_report": { "$ref": "#/$defs/coverage_report" },
+          "capabilities": {
+            "type": "object",
+            "required": ["supported_entity_types", "supported_actions_prefixes", "supports_neighbors", "supports_coverage"],
+            "properties": {
+              "supported_entity_types": { "type": "array", "items": { "type": "string" } },
+              "supported_actions_prefixes": { "type": "array", "items": { "type": "string" } },
+              "supports_neighbors": { "type": "boolean" },
+              "supports_coverage": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "example_request": {},
+      "example_response": {
+        "plane": "identity",
+        "version": "0.1.0",
+        "coverage_report": {
+          "id": "01HZYYCRNOW",
+          "tlp": "GREEN",
+          "plane": "identity",
+          "time_range": { "start": "2026-01-05T00:00:00Z", "end": "2026-01-05T00:00:00Z" },
+          "overall_status": "unknown",
+          "sources": [{ "source_name": "identity_provider", "status": "unknown" }]
+        },
+        "capabilities": {
+          "supported_entity_types": ["principal", "credential", "session", "tenant", "network_endpoint", "device"],
+          "supported_actions_prefixes": ["auth.", "credential.", "privilege."],
+          "supports_neighbors": true,
+          "supports_coverage": true
+        }
+      }
+    },
+    {
+      "name": "describe_types",
+      "description": "Return minimal schema discovery for filtering/searching (entity types, relationship types, context fields).",
+      "request_schema": { "type": "object", "properties": {}, "additionalProperties": false },
+      "response_schema": {
+        "type": "object",
+        "required": ["plane", "coverage_report", "types"],
+        "properties": {
+          "plane": { "type": "string", "const": "identity" },
+          "coverage_report": { "$ref": "#/$defs/coverage_report" },
+          "types": {
+            "type": "object",
+            "required": ["entity_type_enum", "relationship_types", "context_fields"],
+            "properties": {
+              "entity_type_enum": { "type": "array", "items": { "type": "string" } },
+              "relationship_types": { "type": "array", "items": { "type": "string" } },
+              "context_fields": { "type": "array", "items": { "type": "string" } }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_entity",
+      "description": "Fetch a single entity by canonical entity_id.",
+      "request_schema": {
+        "type": "object",
+        "required": ["entity_id"],
+        "properties": { "entity_id": { "type": "string" } },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "search_entities",
+      "description": "Search entities by free-text query and optional filters.",
+      "request_schema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string" },
+          "entity_types": { "type": "array", "items": { "type": "string" } },
+          "kinds": { "type": "array", "items": { "type": "string" } },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 500 },
+          "page_token": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "search_events",
+      "description": "Search normalized identity events; returns ActionEvent plus referenced entities and a coverage_report.",
+      "request_schema": {
+        "type": "object",
+        "required": ["time_range"],
+        "properties": {
+          "time_range": { "$ref": "#/$defs/time_range" },
+          "actions": { "type": "array", "items": { "type": "string" } },
+          "actor_entity_ids": { "type": "array", "items": { "type": "string" } },
+          "target_entity_ids": { "type": "array", "items": { "type": "string" } },
+          "filters": { "type": "object" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 2000 },
+          "page_token": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "get_neighbors",
+      "description": "Traverse relationships from an entity (depth is intentionally small to keep scope bounded).",
+      "request_schema": {
+        "type": "object",
+        "required": ["entity_id", "time_range"],
+        "properties": {
+          "entity_id": { "type": "string" },
+          "relationship_types": { "type": "array", "items": { "type": "string" } },
+          "time_range": { "$ref": "#/$defs/time_range" },
+          "depth": { "type": "integer", "minimum": 1, "maximum": 2 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 2000 },
+          "page_token": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "describe_coverage",
+      "description": "Return coverage status and gaps for the given time range and optional scope (e.g., principal).",
+      "request_schema": {
+        "type": "object",
+        "required": ["time_range"],
+        "properties": {
+          "time_range": { "$ref": "#/$defs/time_range" },
+          "sources": { "type": "array", "items": { "type": "string" } },
+          "scopes": {
+            "type": "object",
+            "properties": {
+              "principal_entity_id": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "resolve_principal",
+      "description": "Resolve principal candidates by email/username/external refs (thin wrapper over search_entities).",
+      "request_schema": {
+        "type": "object",
+        "required": ["identifiers"],
+        "properties": {
+          "identifiers": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/ref" }
+          },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 50 }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "get_principal",
+      "description": "Fetch a principal by principal_entity_id (thin wrapper over get_entity).",
+      "request_schema": {
+        "type": "object",
+        "required": ["principal_entity_id"],
+        "properties": { "principal_entity_id": { "type": "string" } },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "list_principal_sessions",
+      "description": "List sessions for a principal (thin wrapper over search_events + get_neighbors).",
+      "request_schema": {
+        "type": "object",
+        "required": ["principal_entity_id", "time_range"],
+        "properties": {
+          "principal_entity_id": { "type": "string" },
+          "time_range": { "$ref": "#/$defs/time_range" },
+          "include_revoked": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "list_credential_changes",
+      "description": "List credential/factor changes for a principal (thin wrapper over search_events).",
+      "request_schema": {
+        "type": "object",
+        "required": ["principal_entity_id", "time_range"],
+        "properties": {
+          "principal_entity_id": { "type": "string" },
+          "time_range": { "$ref": "#/$defs/time_range" }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    },
+    {
+      "name": "list_privilege_changes",
+      "description": "List privilege/access path changes for a principal (thin wrapper over search_events).",
+      "request_schema": {
+        "type": "object",
+        "required": ["principal_entity_id", "time_range"],
+        "properties": {
+          "principal_entity_id": { "type": "string" },
+          "time_range": { "$ref": "#/$defs/time_range" }
+        },
+        "additionalProperties": false
+      },
+      "response_schema": { "$ref": "#/$defs/response_envelope" }
+    }
+  ]
+}

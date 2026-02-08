@@ -1,0 +1,272 @@
+ontology:
+  name: "core_ontology"
+  version: "0.1"
+  notes:
+    - "Core ontology is domain-agnostic. Domain objects MUST be modeled as entity_type=business_object with pack-defined kind."
+    - "All plane MCP tools MUST emit canonical objects and MUST include a coverage_report (even if unknown)."
+
+primitives:
+  id:
+    type: "string"
+    description: "Globally unique identifier within a case (ULID/UUID recommended)."
+  timestamp:
+    type: "string"
+    format: "date-time"
+    description: "RFC3339 timestamp."
+  tlp_marking:
+    type: "string"
+    enum: ["RED", "AMBER", "AMBER_STRICT", "GREEN", "CLEAR"]
+
+enums:
+  entity_type:
+    enum:
+      - "principal"
+      - "credential"
+      - "session"
+      - "resource"
+      - "tenant"
+      - "network_endpoint"
+      - "device"
+      - "business_object"
+      - "case_artifact"
+  event_outcome:
+    enum: ["succeeded", "failed", "unknown"]
+  coverage_status:
+    enum: ["complete", "partial", "missing", "unknown"]
+  claim_polarity:
+    enum: ["supports", "contradicts", "neutral"]
+  assumption_strength:
+    enum: ["solid", "caveated", "unsupported"]
+  hypothesis_status:
+    enum: ["open", "ruled_in", "ruled_out", "stale"]
+  case_status:
+    enum: ["new", "investigating", "contained", "resolved", "closed"]
+  case_severity:
+    enum: ["sev0", "sev1", "sev2", "sev3", "sev4"]
+  priority:
+    enum: ["high", "medium", "low"]
+
+types:
+  ref:
+    description: "A pointer to an external identifier or raw event location."
+    required: ["ref_type", "system", "value"]
+    fields:
+      ref_type: { type: "string", description: "e.g., event_id, log_pointer, user_id, ticket_id" }
+      system: { type: "string", description: "e.g., cloudtrail, okta, postgres_audit, app_db" }
+      value: { type: "string" }
+      url: { type: "string", optional: true }
+      observed_at: { "$ref": "#/primitives/timestamp", optional: true }
+
+  time_range:
+    description: "Time bounds for queries and coverage reports."
+    required: ["start", "end"]
+    fields:
+      start: { "$ref": "#/primitives/timestamp" }
+      end: { "$ref": "#/primitives/timestamp" }
+
+  entity:
+    description: "A canonical, domain-agnostic thing referenced by events/relationships/claims."
+    required: ["id", "tlp", "entity_type", "kind", "display_name"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      entity_type: { "$ref": "#/enums/entity_type" }
+      kind:
+        type: "string"
+        description: "Extension hook. Domain-specific kinds MUST be defined in a Knowledge Pack."
+      display_name: { type: "string" }
+      refs: { type: "array", items: { "$ref": "#/types/ref" }, optional: true }
+      attributes:
+        type: "object"
+        description: "Small, flattened map for normalized fields (avoid raw blobs)."
+        optional: true
+      first_seen: { "$ref": "#/primitives/timestamp", optional: true }
+      last_seen: { "$ref": "#/primitives/timestamp", optional: true }
+      confidence:
+        type: "number"
+        minimum: 0.0
+        maximum: 1.0
+        optional: true
+
+  action_event:
+    description: "Canonical normalized record emitted by every plane."
+    required: ["id", "tlp", "plane", "ts", "action", "actor", "targets", "outcome"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      plane: { type: "string" }
+      ts: { "$ref": "#/primitives/timestamp" }
+      action:
+        type: "string"
+        description: "Taxonomy string (pack may define canonical action strings)."
+      actor:
+        type: "object"
+        required: ["actor_entity_id"]
+        fields:
+          actor_entity_id: { "$ref": "#/primitives/id" }
+      targets:
+        type: "array"
+        items:
+          type: "object"
+          required: ["target_entity_id"]
+          fields:
+            target_entity_id: { "$ref": "#/primitives/id" }
+            role: { type: "string", optional: true }
+      outcome: { "$ref": "#/enums/event_outcome" }
+      context:
+        type: "object"
+        description: "Small normalized fields (e.g., source_ip, user_agent, auth_method)."
+        optional: true
+      related_entity_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+      raw_refs:
+        type: "array"
+        description: "Provenance pointers to raw source events. Always required; use empty array for synthetic/derived events."
+        items: { "$ref": "#/types/ref" }
+      ingested_at: { "$ref": "#/primitives/timestamp", optional: true }
+
+  relationship:
+    description: "Typed edge between entities."
+    required: ["id", "tlp", "plane", "relationship_type", "from_entity_id", "to_entity_id"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      plane: { type: "string" }
+      relationship_type: { type: "string" }
+      from_entity_id: { "$ref": "#/primitives/id" }
+      to_entity_id: { "$ref": "#/primitives/id" }
+      first_seen: { "$ref": "#/primitives/timestamp", optional: true }
+      last_seen: { "$ref": "#/primitives/timestamp", optional: true }
+      evidence_refs: { type: "array", items: { "$ref": "#/types/ref" }, optional: true }
+
+  coverage_report:
+    description: "Machine-readable visibility/gaps. MUST be included in every MCP tool response."
+    required: ["id", "tlp", "plane", "time_range", "overall_status", "sources"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      plane: { type: "string" }
+      time_range: { "$ref": "#/types/time_range" }
+      overall_status: { "$ref": "#/enums/coverage_status" }
+      sources:
+        type: "array"
+        items:
+          type: "object"
+          required: ["source_name", "status"]
+          fields:
+            source_name: { type: "string" }
+            status: { "$ref": "#/enums/coverage_status" }
+      missing_fields: { type: "array", items: { type: "string" }, optional: true }
+      data_latency_seconds: { type: "number", optional: true }
+      quality_flags: { type: "array", items: { type: "string" }, optional: true }
+      notes: { type: "string", optional: true }
+
+  evidence_item:
+    description: "Analytic wrapper that points to raw sources."
+    required: ["id", "tlp", "plane", "summary", "raw_refs", "collected_at"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      plane: { type: "string" }
+      summary: { type: "string" }
+      raw_refs: { type: "array", items: { "$ref": "#/types/ref" } }
+      collected_at: { "$ref": "#/primitives/timestamp" }
+      related_entity_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+      related_event_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+      hash: { type: "string", optional: true }
+
+  claim:
+    description: "Atomic analytic statement backed by evidence; supports/contradicts hypotheses."
+    required: ["id", "tlp", "statement", "polarity", "confidence", "backed_by_evidence_ids"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      statement: { type: "string" }
+      polarity: { "$ref": "#/enums/claim_polarity" }
+      confidence:
+        type: "number"
+        minimum: 0.0
+        maximum: 1.0
+      backed_by_evidence_ids: { type: "array", items: { "$ref": "#/primitives/id" } }
+      subject_entity_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+      time_range: { "$ref": "#/types/time_range", optional: true }
+      derived_from_claim_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+      assumption_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+
+  assumption:
+    description: "Explicit assumptions with strength."
+    required: ["id", "tlp", "statement", "strength", "rationale"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      statement: { type: "string" }
+      strength: { "$ref": "#/enums/assumption_strength" }
+      rationale: { type: "string" }
+      impacts: { type: "array", items: { type: "string" }, optional: true }
+
+  hypothesis:
+    description: "Structured hypothesis with likelihood scoring and gap-aware confidence cap."
+    required:
+      - "id"
+      - "tlp"
+      - "iq_id"
+      - "statement"
+      - "likelihood_score"
+      - "confidence_cap"
+      - "supporting_claim_ids"
+      - "gaps"
+      - "next_evidence_requests"
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      iq_id: { type: "string" }
+      statement: { type: "string" }
+      likelihood_score:
+        type: "number"
+        minimum: 0.0
+        maximum: 1.0
+      confidence_cap:
+        type: "number"
+        minimum: 0.0
+        maximum: 1.0
+        description: "Upper bound due to coverage gaps and uncertainty."
+      supporting_claim_ids: { type: "array", items: { "$ref": "#/primitives/id" } }
+      contradicting_claim_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+      gaps:
+        type: "array"
+        description: "CoverageReport IDs that constrain confidence."
+        items: { "$ref": "#/primitives/id" }
+      next_evidence_requests:
+        type: "array"
+        items:
+          type: "object"
+          required: ["plane", "tool", "params", "priority"]
+          fields:
+            plane: { type: "string" }
+            tool: { type: "string" }
+            params: { type: "object" }
+            priority: { "$ref": "#/enums/priority" }
+      status: { "$ref": "#/enums/hypothesis_status", optional: true }
+      updated_at: { "$ref": "#/primitives/timestamp", optional: true }
+
+  case:
+    description: "Minimal case tracking (not ITSM)."
+    required: ["id", "tlp", "title", "status", "severity", "created_at"]
+    fields:
+      id: { "$ref": "#/primitives/id" }
+      tlp: { "$ref": "#/primitives/tlp_marking" }
+      title: { type: "string" }
+      status: { "$ref": "#/enums/case_status" }
+      severity: { "$ref": "#/enums/case_severity" }
+      created_at: { "$ref": "#/primitives/timestamp" }
+      detected_at: { "$ref": "#/primitives/timestamp", optional: true }
+      contained_at: { "$ref": "#/primitives/timestamp", optional: true }
+      resolved_at: { "$ref": "#/primitives/timestamp", optional: true }
+      metrics:
+        type: "object"
+        optional: true
+        fields:
+          mttd_seconds: { type: "number", optional: true }
+          mttc_seconds: { type: "number", optional: true }
+          mttr_seconds: { type: "number", optional: true }
+      hypothesis_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
+      tags: { type: "array", items: { type: "string" }, optional: true }
