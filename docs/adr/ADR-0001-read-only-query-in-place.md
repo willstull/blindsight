@@ -12,11 +12,11 @@ Existing systems already store the required telemetry with their own retention p
 
 ## Decision
 
-Blindsight will use read-only MCP adapters that query existing telemetry systems in-place and normalize results to canonical objects. No continuous, organization-wide ingestion or indexing.
+Blindsight will use read-only MCP integrations that query existing telemetry systems in-place and normalize results to normalized records. No continuous, organization-wide ingestion or indexing.
 
 The system maintains a case-scoped evidence record:
 - Tool calls executed (inputs/outputs, timestamps)
-- Pointers to raw sources (URLs, query IDs, event IDs)
+- Source references pointing to raw sources (URLs, query IDs, event IDs)
 - Selected evidence artifacts (exports, snapshots, small log slices) for reproducibility
 - Derived objects (entities, events, relationships)
 - Claims, hypotheses, and coverage reports

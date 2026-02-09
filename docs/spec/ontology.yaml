@@ -3,7 +3,7 @@ ontology:
   version: "0.1"
   notes:
     - "Core ontology is domain-agnostic. Domain objects MUST be modeled as entity_type=business_object with pack-defined kind."
-    - "All plane MCP tools MUST emit canonical objects and MUST include a coverage_report (even if unknown)."
+    - "All domain MCP tools MUST emit normalized records and MUST include a coverage_report (even if unknown)."
 
 primitives:
   id:
@@ -48,7 +48,7 @@ enums:
 
 types:
   ref:
-    description: "A pointer to an external identifier or raw event location."
+    description: "A source reference pointing to an external identifier or raw event location."
     required: ["ref_type", "system", "value"]
     fields:
       ref_type: { type: "string", description: "e.g., event_id, log_pointer, user_id, ticket_id" }
@@ -65,7 +65,7 @@ types:
       end: { "$ref": "#/primitives/timestamp" }
 
   entity:
-    description: "A canonical, domain-agnostic thing referenced by events/relationships/claims."
+    description: "A normalized, domain-agnostic thing referenced by events/relationships/claims."
     required: ["id", "tlp", "entity_type", "kind", "display_name"]
     fields:
       id: { "$ref": "#/primitives/id" }
@@ -89,12 +89,12 @@ types:
         optional: true
 
   action_event:
-    description: "Canonical normalized record emitted by every plane."
-    required: ["id", "tlp", "plane", "ts", "action", "actor", "targets", "outcome"]
+    description: "Normalized event record emitted by every domain."
+    required: ["id", "tlp", "domain", "ts", "action", "actor", "targets", "outcome"]
     fields:
       id: { "$ref": "#/primitives/id" }
       tlp: { "$ref": "#/primitives/tlp_marking" }
-      plane: { type: "string" }
+      domain: { type: "string" }
       ts: { "$ref": "#/primitives/timestamp" }
       action:
         type: "string"
@@ -120,17 +120,17 @@ types:
       related_entity_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
       raw_refs:
         type: "array"
-        description: "Provenance pointers to raw source events. Always required; use empty array for synthetic/derived events."
+        description: "Source references pointing to raw source events. Always required; use empty array for synthetic/derived events."
         items: { "$ref": "#/types/ref" }
       ingested_at: { "$ref": "#/primitives/timestamp", optional: true }
 
   relationship:
     description: "Typed edge between entities."
-    required: ["id", "tlp", "plane", "relationship_type", "from_entity_id", "to_entity_id"]
+    required: ["id", "tlp", "domain", "relationship_type", "from_entity_id", "to_entity_id"]
     fields:
       id: { "$ref": "#/primitives/id" }
       tlp: { "$ref": "#/primitives/tlp_marking" }
-      plane: { type: "string" }
+      domain: { type: "string" }
       relationship_type: { type: "string" }
       from_entity_id: { "$ref": "#/primitives/id" }
       to_entity_id: { "$ref": "#/primitives/id" }
@@ -140,11 +140,11 @@ types:
 
   coverage_report:
     description: "Machine-readable visibility/gaps. MUST be included in every MCP tool response."
-    required: ["id", "tlp", "plane", "time_range", "overall_status", "sources"]
+    required: ["id", "tlp", "domain", "time_range", "overall_status", "sources"]
     fields:
       id: { "$ref": "#/primitives/id" }
       tlp: { "$ref": "#/primitives/tlp_marking" }
-      plane: { type: "string" }
+      domain: { type: "string" }
       time_range: { "$ref": "#/types/time_range" }
       overall_status: { "$ref": "#/enums/coverage_status" }
       sources:
@@ -162,11 +162,11 @@ types:
 
   evidence_item:
     description: "Analytic wrapper that points to raw sources."
-    required: ["id", "tlp", "plane", "summary", "raw_refs", "collected_at"]
+    required: ["id", "tlp", "domain", "summary", "raw_refs", "collected_at"]
     fields:
       id: { "$ref": "#/primitives/id" }
       tlp: { "$ref": "#/primitives/tlp_marking" }
-      plane: { type: "string" }
+      domain: { type: "string" }
       summary: { type: "string" }
       raw_refs: { type: "array", items: { "$ref": "#/types/ref" } }
       collected_at: { "$ref": "#/primitives/timestamp" }
@@ -204,14 +204,14 @@ types:
       impacts: { type: "array", items: { type: "string" }, optional: true }
 
   hypothesis:
-    description: "Structured hypothesis with likelihood scoring and gap-aware confidence cap."
+    description: "Structured hypothesis with likelihood scoring and confidence limit."
     required:
       - "id"
       - "tlp"
       - "iq_id"
       - "statement"
       - "likelihood_score"
-      - "confidence_cap"
+      - "confidence_limit"
       - "supporting_claim_ids"
       - "gaps"
       - "next_evidence_requests"
@@ -224,7 +224,7 @@ types:
         type: "number"
         minimum: 0.0
         maximum: 1.0
-      confidence_cap:
+      confidence_limit:
         type: "number"
         minimum: 0.0
         maximum: 1.0
@@ -239,9 +239,9 @@ types:
         type: "array"
         items:
           type: "object"
-          required: ["plane", "tool", "params", "priority"]
+          required: ["domain", "tool", "params", "priority"]
           fields:
-            plane: { type: "string" }
+            domain: { type: "string" }
             tool: { type: "string" }
             params: { type: "object" }
             priority: { "$ref": "#/enums/priority" }

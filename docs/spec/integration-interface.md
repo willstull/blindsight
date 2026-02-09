@@ -1,20 +1,20 @@
-# Source Adapter Interface
+# Integration Interface
 
-> Generic boundary for plane adapters (live or replay)
+> Generic boundary for domain integrations (live or replay)
 
 ## Purpose
 
-Define a stable adapter interface that:
+Define a stable integration interface that:
 - Works with both **replay datasets** and **live telemetry sources**
 - Keeps live integration choice **TBD** without blocking progress
-- Enforces consistent tool contracts across all planes
-- Enables deterministic testing with mocked/replay adapters
+- Enforces consistent tool contracts across all domains
+- Enables deterministic testing with mocked/replay integrations
 
 ---
 
 ## Three-Layer Model
 
-An adapter is the plane's source-specific translator that fetches records and emits canonical entities/events/relationships with raw references. The MCP server exposes the stable tool interface that calls the adapter.
+An integration is the domain's source-specific translator that fetches records and emits normalized entities/events/relationships with source references. The MCP server exposes the stable tool interface that calls the integration.
 
 ### Layer 1: Source System
 
@@ -24,7 +24,7 @@ The telemetry source that holds raw data:
 - **Application logs**: Splunk, Elasticsearch, custom SIEM
 - **File exports**: NDJSON fixtures, CSV files, PCAP captures
 
-### Layer 2: Adapter
+### Layer 2: Integration
 
 Source-specific translator that does two jobs:
 
@@ -32,40 +32,40 @@ Source-specific translator that does two jobs:
    - Live: Call REST API, run Splunk SPL, query database
    - Replay: Read fixture files from disk
 
-2. **Normalize**: Map source data to canonical objects
+2. **Normalize**: Map source data to normalized records
    - Translate vendor schema to Entity/ActionEvent/Relationship
-   - Generate canonical IDs
-   - Attach raw_refs for provenance
+   - Generate normalized IDs
+   - Attach raw_refs for source references
    - Build coverage reports
 
 Examples:
-- `ReplayIdentityAdapter`: Reads NDJSON fixtures, outputs canonical objects
-- `OktaAdapter`: Calls Okta System Log API, normalizes to canonical objects
-- `EntraAdapter`: Calls Microsoft Graph API, normalizes to canonical objects
-- `SplunkAdapter`: Runs SPL query, parses results, normalizes to canonical objects
+- `ReplayIdentityIntegration`: Reads NDJSON fixtures, outputs normalized records
+- `OktaIntegration`: Calls Okta System Log API, normalizes to normalized records
+- `EntraIntegration`: Calls Microsoft Graph API, normalizes to normalized records
+- `SplunkIntegration`: Runs SPL query, parses results, normalizes to normalized records
 
-### Layer 3: Plane Server (MCP Server)
+### Layer 3: Domain MCP Server
 
-The MCP server wraps the adapter and exposes tools to the LLM client:
+The MCP server wraps the integration and exposes tools to the LLM client:
 - Defines tool signatures (search_events, get_entity, get_neighbors, etc.)
-- Routes tool calls to adapter methods
+- Routes tool calls to integration methods
 - Returns response envelope (status, items, coverage_report)
 - Manages configuration, logging, error handling
 
-**Key Insight**: ReplayAdapter is just another adapter implementation. Same tools, different adapter. This enables evaluation without live integrations—swap the adapter, not the tool contract.
+**Key Insight**: Replay integration is just another integration implementation. Same tools, different integration. This enables evaluation without live integrations—swap the integration, not the tool contract.
 
 ### Why This Matters
 
-- **Add new vendors**: Write new adapter without changing tool contract
-- **Test everything with replay**: Use ReplayAdapter for deterministic evaluation
+- **Add new vendors**: Write new integration without changing tool contract
+- **Test everything with replay**: Use replay integration for deterministic evaluation
 - **Avoid vendor lock-in**: Core types and case store never see vendor schemas
 - **Defer live integration**: Prove architecture with replay, add live sources later
 
 ---
 
-## Adapter Interface
+## Integration Interface
 
-All plane adapters (identity, network, resource, etc.) implement this interface:
+All domain integrations (identity, network, resource, etc.) implement this interface:
 
 ```python
 from abc import ABC, abstractmethod
@@ -78,8 +78,8 @@ class TimeRange:
     end: str
 
 @dataclass
-class AdapterResponse:
-    """Standard response from all adapter methods"""
+class IntegrationResponse:
+    """Standard response from all integration methods"""
     status: str                     # "success" | "partial" | "error"
     items: List[Dict[str, Any]]     # Entities, events, or relationships
     coverage_report: Dict[str, Any] # Coverage metadata (REQUIRED)
@@ -87,23 +87,23 @@ class AdapterResponse:
     limitations: List[str] = None
     next_page_token: Optional[str] = None
 
-class PlaneAdapter(ABC):
+class DomainIntegration(ABC):
     """
-    Abstract base class for all plane adapters.
+    Abstract base class for all domain integrations.
 
     Implementations:
-    - ReplayPlaneAdapter: Reads from replay datasets
-    - LivePlaneAdapter: Queries real telemetry sources
+    - ReplayIntegration: Reads from replay datasets
+    - LiveIntegration: Queries real telemetry sources
     """
 
     @abstractmethod
-    async def describe_plane(self) -> Dict[str, Any]:
+    async def describe_domain(self) -> Dict[str, Any]:
         """
-        Return plane capabilities and current coverage status.
+        Return domain capabilities and current coverage status.
 
         Returns:
             {
-                "plane": str,
+                "domain": str,
                 "version": str,
                 "capabilities": {...},
                 "coverage_report": {...}
@@ -118,7 +118,7 @@ class PlaneAdapter(ABC):
 
         Returns:
             {
-                "plane": str,
+                "domain": str,
                 "coverage_report": {...},
                 "types": {
                     "entity_type_enum": [str],
@@ -133,15 +133,15 @@ class PlaneAdapter(ABC):
     async def get_entity(
         self,
         entity_id: str
-    ) -> AdapterResponse:
+    ) -> IntegrationResponse:
         """
-        Fetch a single entity by canonical ID.
+        Fetch a single entity by normalized ID.
 
         Args:
-            entity_id: Canonical entity ID within case
+            entity_id: Normalized entity ID within case
 
         Returns:
-            AdapterResponse with items=[Entity] or error
+            IntegrationResponse with items=[Entity] or error
         """
         pass
 
@@ -153,7 +153,7 @@ class PlaneAdapter(ABC):
         kinds: Optional[List[str]] = None,
         limit: int = 100,
         page_token: Optional[str] = None
-    ) -> AdapterResponse:
+    ) -> IntegrationResponse:
         """
         Search entities by free-text query and filters.
 
@@ -165,7 +165,7 @@ class PlaneAdapter(ABC):
             page_token: Continuation token from previous page
 
         Returns:
-            AdapterResponse with items=[Entity, ...]
+            IntegrationResponse with items=[Entity, ...]
         """
         pass
 
@@ -179,7 +179,7 @@ class PlaneAdapter(ABC):
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 2000,
         page_token: Optional[str] = None
-    ) -> AdapterResponse:
+    ) -> IntegrationResponse:
         """
         Search normalized events with time bounds and filters.
 
@@ -193,7 +193,7 @@ class PlaneAdapter(ABC):
             page_token: Continuation token
 
         Returns:
-            AdapterResponse with items=[ActionEvent, ...] + entities
+            IntegrationResponse with items=[ActionEvent, ...] + entities
         """
         pass
 
@@ -206,7 +206,7 @@ class PlaneAdapter(ABC):
         depth: int = 1,
         limit: int = 2000,
         page_token: Optional[str] = None
-    ) -> AdapterResponse:
+    ) -> IntegrationResponse:
         """
         Traverse relationships from an entity.
 
@@ -219,7 +219,7 @@ class PlaneAdapter(ABC):
             page_token: Continuation token
 
         Returns:
-            AdapterResponse with entities=[...], relationships=[...]
+            IntegrationResponse with entities=[...], relationships=[...]
         """
         pass
 
@@ -229,7 +229,7 @@ class PlaneAdapter(ABC):
         time_range: TimeRange,
         sources: Optional[List[str]] = None,
         scopes: Optional[Dict[str, Any]] = None
-    ) -> AdapterResponse:
+    ) -> IntegrationResponse:
         """
         Return coverage status and gaps for time range.
 
@@ -239,28 +239,28 @@ class PlaneAdapter(ABC):
             scopes: Optional scope filters (e.g., principal_entity_id)
 
         Returns:
-            AdapterResponse with coverage_report as main payload
+            IntegrationResponse with coverage_report as main payload
         """
         pass
 ```
 
 ---
 
-## Implementation: Replay Adapter
+## Implementation: Replay Integration
 
 ```python
 import json
 from pathlib import Path
 
-class ReplayIdentityPlane(PlaneAdapter):
-    """Replay adapter: reads from NDJSON fixture files"""
+class ReplayIdentityIntegration(DomainIntegration):
+    """Replay integration: reads from NDJSON fixture files"""
 
     def __init__(self, data_dir: str):
         """
         Initialize with replay dataset directory.
 
         Args:
-            data_dir: Path to scenario data (e.g., "scenarios/cred_change/planes/identity")
+            data_dir: Path to scenario data (e.g., "scenarios/cred_change/domains/identity")
         """
         self.data_dir = Path(data_dir)
         self.entities = self._load_ndjson("entities.ndjson")
@@ -282,10 +282,10 @@ class ReplayIdentityPlane(PlaneAdapter):
         with open(self.data_dir / filename) as f:
             return yaml.safe_load(f)
 
-    async def describe_plane(self) -> Dict[str, Any]:
-        """Return identity plane capabilities from replay metadata"""
+    async def describe_domain(self) -> Dict[str, Any]:
+        """Return identity domain capabilities from replay metadata"""
         return {
-            "plane": "identity",
+            "domain": "identity",
             "version": "0.1.0",
             "capabilities": {
                 "supported_entity_types": ["principal", "credential", "session"],
@@ -301,7 +301,7 @@ class ReplayIdentityPlane(PlaneAdapter):
         time_range: TimeRange,
         actions: Optional[List[str]] = None,
         **kwargs
-    ) -> AdapterResponse:
+    ) -> IntegrationResponse:
         """Search events in replay dataset"""
         from datetime import datetime
 
@@ -326,7 +326,7 @@ class ReplayIdentityPlane(PlaneAdapter):
         status = "success" if self.coverage["overall_status"] == "complete" else "partial"
         coverage_report = self._build_coverage_report(time_range)
 
-        return AdapterResponse(
+        return IntegrationResponse(
             status=status,
             items=filtered,
             coverage_report=coverage_report,
@@ -340,7 +340,7 @@ class ReplayIdentityPlane(PlaneAdapter):
         return {
             "id": str(ULID()),
             "tlp": "GREEN",
-            "plane": "identity",
+            "domain": "identity",
             "time_range": {
                 "start": time_range.start if time_range else "2026-01-01T00:00:00Z",
                 "end": time_range.end if time_range else "2026-01-31T23:59:59Z"
@@ -365,12 +365,12 @@ class ReplayIdentityPlane(PlaneAdapter):
 
 ---
 
-## Implementation: Live Adapter (Stub)
+## Implementation: Live Integration (Stub)
 
 ```python
-class LiveIdentityPlane(PlaneAdapter):
+class LiveIdentityIntegration(DomainIntegration):
     """
-    Live adapter: queries real telemetry sources.
+    Live integration: queries real telemetry sources.
 
     STUB: Interface defined, implementation TBD.
     """
@@ -389,7 +389,7 @@ class LiveIdentityPlane(PlaneAdapter):
         self,
         time_range: TimeRange,
         **kwargs
-    ) -> AdapterResponse:
+    ) -> IntegrationResponse:
         """
         Query live telemetry source.
 
@@ -398,93 +398,93 @@ class LiveIdentityPlane(PlaneAdapter):
         # Pseudocode:
         # 1. Translate request to source API call
         # 2. Execute query (read-only)
-        # 3. Normalize results to canonical ActionEvent schema
+        # 3. Normalize results to normalized ActionEvent schema
         # 4. Generate coverage report based on API response metadata
-        # 5. Return AdapterResponse
+        # 5. Return IntegrationResponse
 
-        raise NotImplementedError("Live adapter: source integration TBD")
+        raise NotImplementedError("Live integration: source integration TBD")
 ```
 
 ---
 
-## Adapter Factory Pattern
+## Integration Factory Pattern
 
 ```python
 from enum import Enum
 
-class AdapterMode(Enum):
+class IntegrationMode(Enum):
     REPLAY = "replay"
     LIVE = "live"
 
-def create_identity_plane_adapter(
-    mode: AdapterMode,
+def create_identity_integration(
+    mode: IntegrationMode,
     config: Dict[str, Any]
-) -> PlaneAdapter:
+) -> DomainIntegration:
     """
-    Factory: Create identity plane adapter (replay or live).
+    Factory: Create identity domain integration (replay or live).
 
     Args:
         mode: REPLAY or LIVE
         config: Mode-specific configuration
-            - REPLAY: {"data_dir": "path/to/scenario/planes/identity"}
+            - REPLAY: {"data_dir": "path/to/scenario/domains/identity"}
             - LIVE: {"source": "okta", "api_key": "...", ...}
 
     Returns:
-        PlaneAdapter instance
+        DomainIntegration instance
     """
-    if mode == AdapterMode.REPLAY:
-        return ReplayIdentityPlane(data_dir=config["data_dir"])
-    elif mode == AdapterMode.LIVE:
-        return LiveIdentityPlane(config=config)
+    if mode == IntegrationMode.REPLAY:
+        return ReplayIdentityIntegration(data_dir=config["data_dir"])
+    elif mode == IntegrationMode.LIVE:
+        return LiveIdentityIntegration(config=config)
     else:
-        raise ValueError(f"Unknown adapter mode: {mode}")
+        raise ValueError(f"Unknown integration mode: {mode}")
 ```
 
 **Usage**:
 ```python
-# Testing: Use replay adapter
-adapter = create_identity_plane_adapter(
-    mode=AdapterMode.REPLAY,
-    config={"data_dir": "tests/fixtures/replay/scenarios/cred_change/planes/identity"}
+# Testing: Use replay integration
+integration = create_identity_integration(
+    mode=IntegrationMode.REPLAY,
+    config={"data_dir": "tests/fixtures/replay/scenarios/cred_change/domains/identity"}
 )
 
-# Production: Use live adapter (TBD)
-adapter = create_identity_plane_adapter(
-    mode=AdapterMode.LIVE,
+# Production: Use live integration (TBD)
+integration = create_identity_integration(
+    mode=IntegrationMode.LIVE,
     config={"source": "okta", "api_key": os.getenv("OKTA_API_KEY"), ...}
 )
 ```
 
 ---
 
-## Adapter Contract Validation
+## Integration Contract Validation
 
 ```python
 import pytest
 
-async def validate_adapter_contract(adapter: PlaneAdapter):
+async def validate_integration_contract(integration: DomainIntegration):
     """
-    Test suite: Verify adapter implements interface correctly.
+    Test suite: Verify integration implements interface correctly.
 
-    Use this to validate both replay and live adapters.
+    Use this to validate both replay and live integrations.
     """
 
-    # 1. describe_plane returns required fields
-    plane_info = await adapter.describe_plane()
-    assert "plane" in plane_info
-    assert "version" in plane_info
-    assert "capabilities" in plane_info
-    assert "coverage_report" in plane_info
+    # 1. describe_domain returns required fields
+    domain_info = await integration.describe_domain()
+    assert "domain" in domain_info
+    assert "version" in domain_info
+    assert "capabilities" in domain_info
+    assert "coverage_report" in domain_info
 
     # 2. search_events requires time_range
     with pytest.raises(TypeError):
-        await adapter.search_events()  # Missing required arg
+        await integration.search_events()  # Missing required arg
 
-    # 3. search_events returns AdapterResponse
-    response = await adapter.search_events(
+    # 3. search_events returns IntegrationResponse
+    response = await integration.search_events(
         time_range=TimeRange(start="2026-01-01T00:00:00Z", end="2026-01-31T23:59:59Z")
     )
-    assert isinstance(response, AdapterResponse)
+    assert isinstance(response, IntegrationResponse)
     assert response.coverage_report is not None
 
     # 4. Coverage report has required fields
@@ -501,22 +501,22 @@ async def validate_adapter_contract(adapter: PlaneAdapter):
 ## Benefits of This Interface
 
 ### 1. Progress Without Live Integration
-- Implement replay adapter → measurable progress
-- Write tests against replay adapter → evaluation harness complete
-- Live integration becomes "swap adapter" later
+- Implement replay integration → measurable progress
+- Write tests against replay integration → evaluation harness complete
+- Live integration becomes "swap integration" later
 
 ### 2. Deterministic Testing
-- Replay adapter produces same outputs every time
+- Replay integration produces same outputs every time
 - Golden output comparison works reliably
 - No flaky tests from live source changes
 
 ### 3. Easy Mocking
 ```python
-class MockIdentityPlane(PlaneAdapter):
+class MockIdentityIntegration(DomainIntegration):
     """Minimal mock for unit tests"""
 
     async def search_events(self, time_range, **kwargs):
-        return AdapterResponse(
+        return IntegrationResponse(
             status="success",
             items=[],  # Empty result
             coverage_report={"overall_status": "complete", "sources": []}
@@ -528,26 +528,26 @@ class MockIdentityPlane(PlaneAdapter):
 ### 4. Swappable Implementations
 ```python
 # Test mode
-plane = ReplayIdentityPlane(data_dir="tests/fixtures/...")
+integration = ReplayIdentityIntegration(data_dir="tests/fixtures/...")
 
 # Production mode (future)
-plane = LiveOktaPlane(config=okta_config)
+integration = LiveOktaIntegration(config=okta_config)
 
 # Interface is identical
-events = await plane.search_events(time_range=...)
+events = await integration.search_events(time_range=...)
 ```
 
 ---
 
-## Adapter Configuration
+## Integration Configuration
 
 ```yaml
-# config/planes.yaml
-planes:
+# config/domains.yaml
+domains:
   identity:
     mode: replay  # or "live"
     replay:
-      data_dir: "tests/fixtures/replay/scenarios/baseline/planes/identity"
+      data_dir: "tests/fixtures/replay/scenarios/baseline/domains/identity"
     live:
       source: okta
       api_endpoint: "https://dev-12345.okta.com"
@@ -557,37 +557,37 @@ planes:
 ```
 
 ```python
-# Load adapter from config
-def load_plane_adapter(plane_name: str, config: Dict) -> PlaneAdapter:
-    """Load plane adapter from configuration"""
-    plane_config = config["planes"][plane_name]
-    mode = AdapterMode(plane_config["mode"])
+# Load integration from config
+def load_domain_integration(domain_name: str, config: Dict) -> DomainIntegration:
+    """Load domain integration from configuration"""
+    domain_config = config["domains"][domain_name]
+    mode = IntegrationMode(domain_config["mode"])
 
-    if mode == AdapterMode.REPLAY:
-        return create_identity_plane_adapter(
+    if mode == IntegrationMode.REPLAY:
+        return create_identity_integration(
             mode=mode,
-            config=plane_config["replay"]
+            config=domain_config["replay"]
         )
-    elif mode == AdapterMode.LIVE:
-        return create_identity_plane_adapter(
+    elif mode == IntegrationMode.LIVE:
+        return create_identity_integration(
             mode=mode,
-            config=plane_config["live"]
+            config=domain_config["live"]
         )
 ```
 
 ---
 
-## Summary: Source Adapter Interface
+## Summary: Integration Interface
 
 **Key Principles**:
 1. ✅ Generic boundary: Works with replay or live sources
-2. ✅ Consistent contract: All planes implement same interface
+2. ✅ Consistent contract: All domains implement same interface
 3. ✅ TBD-friendly: Live integration choice deferred
-4. ✅ Testable: Replay adapter enables deterministic tests
+4. ✅ Testable: Replay integration enables deterministic tests
 5. ✅ Swappable: Change mode without changing tool code
 
 **Interface Methods**:
-- `describe_plane()` - Capabilities discovery
+- `describe_domain()` - Capabilities discovery
 - `describe_types()` - Type schema
 - `get_entity(id)` - Single entity lookup
 - `search_entities(query, filters)` - Entity search
@@ -596,6 +596,6 @@ def load_plane_adapter(plane_name: str, config: Dict) -> PlaneAdapter:
 - `describe_coverage(time_range)` - Gap analysis
 
 **Standard Response**:
-- `AdapterResponse` with `status`, `items`, `coverage_report`, `error`, `limitations`
+- `IntegrationResponse` with `status`, `items`, `coverage_report`, `error`, `limitations`
 
 This interface makes **"no live source required"** evaluation feasible while keeping live integration as a clean future addition.

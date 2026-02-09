@@ -14,13 +14,13 @@ Replay datasets enable **evaluation without real incidents**:
 
 Three modes of increasing scope. Choose based on what you need to prove.
 
-### Mode A: Canonical Replay Fixtures (Lowest Scope)
+### Mode A: Normalized Replay Fixtures (Lowest Scope)
 
-**How you get canonical data**: You write it directly as NDJSON.
+**How you get normalized data**: You write it directly as NDJSON.
 
-You author canonical ActionEvent/Entity/Relationship objects directly for each scenario and plane. No vendor logs, no normalization code.
+You author normalized ActionEvent/Entity/Relationship objects directly for each scenario and domain. No vendor logs, no normalization code.
 
-**Files:** `entities.ndjson`, `events.ndjson`, `relationships.ndjson` contain canonical objects.
+**Files:** `entities.ndjson`, `events.ndjson`, `relationships.ndjson` contain normalized objects.
 
 **What this tests:**
 - Tool contract behavior (request → response shape)
@@ -30,13 +30,13 @@ You author canonical ActionEvent/Entity/Relationship objects directly for each s
 - Response envelope compliance
 
 **What this does NOT test:**
-- Raw-to-canonical normalization
+- Raw-to-normalized translation
 - Vendor log parsing
 - Field mapping from vendor schemas
 
 **Pros:**
 - Deterministic, fast
-- Tests the contract, scoring, and case correlation
+- Tests the tool contract, scoring, and case correlation
 - No dependencies on vendor log formats
 
 **Cons:**
@@ -48,21 +48,21 @@ You author canonical ActionEvent/Entity/Relationship objects directly for each s
 
 ### Mode B: Raw Replay Fixtures with Single Mapping (Bounded Raw Support)
 
-**How you get canonical data**: Identity replay adapter reads raw export and normalizes it.
+**How you get normalized data**: Identity replay integration reads raw export and normalizes it.
 
 Pick one raw source format and support exactly that. Example: "Okta System Log JSONL export" or "CloudTrail JSON."
 
-Evidence plane includes a `normalize(raw_record) -> ActionEvent + Entities + Relationships` function.
+Evidence domain includes a `normalize(raw_record) -> ActionEvent + Entities + Relationships` function.
 
 Replay dataset contains raw JSONL plus a mapping config.
 
 **Files:**
 - `raw/okta_system_log.jsonl` - Raw vendor logs
-- `field_mappings.yaml` - How to map vendor fields to canonical fields
+- `field_mappings.yaml` - How to map vendor fields to normalized fields
 - `coverage.yaml` - Same as Mode A
 
 **What this tests:**
-- Normalization pipeline (raw → canonical)
+- Normalization pipeline (raw → normalized)
 - Vendor-specific field parsing
 - Missing-field handling in raw logs
 - Field mapping correctness
@@ -72,7 +72,7 @@ Replay dataset contains raw JSONL plus a mapping config.
 - Multiple vendor formats (only one supported)
 
 **Pros:**
-- Proves the real adapter work once
+- Proves the real integration work once
 - Shows you can normalize vendor logs
 - Still deterministic (no live API)
 
@@ -86,11 +86,11 @@ Replay dataset contains raw JSONL plus a mapping config.
 
 ### Mode C: Live Integration (Highest Scope)
 
-**How you get canonical data**: Adapter queries live system and normalizes responses.
+**How you get normalized data**: Integration queries live system and normalizes responses.
 
-Evidence plane queries a real API (Okta, CloudTrail, Azure AD) and normalizes responses.
+Evidence domain queries a real API (Okta, CloudTrail, Azure AD) and normalizes responses.
 
-No replay fixtures - adapter makes real HTTP requests during test execution.
+No replay fixtures - integration makes real HTTP requests during test execution.
 
 **What this tests:**
 - Real API integration (auth, pagination, rate limits)
@@ -121,7 +121,7 @@ tests/fixtures/replay/
 ├── scenarios/
 │   ├── credential_change_baseline/
 │   │   ├── manifest.yaml                    # Scenario metadata
-│   │   ├── planes/
+│   │   ├── domains/
 │   │   │   └── identity/
 │   │   │       ├── entities.ndjson         # Entity catalog
 │   │   │       ├── events.ndjson           # Event stream
@@ -131,12 +131,12 @@ tests/fixtures/replay/
 │   │
 │   ├── credential_change_degraded/
 │   │   ├── manifest.yaml                    # Same scenario, degraded
-│   │   ├── planes/
+│   │   ├── domains/
 │   │   │   └── identity/
 │   │   │       ├── entities.ndjson
 │   │   │       ├── events.ndjson           # ← Fewer events (gap)
 │   │   │       └── coverage.yaml           # ← overall_status: "partial"
-│   │   └── expected_output.json            # ← Lower confidence cap
+│   │   └── expected_output.json            # ← Lower confidence limit
 │   │
 │   └── privilege_escalation_baseline/
 │       └── ...
@@ -164,8 +164,8 @@ time_range:
   start: "2026-01-01T00:00:00Z"
   end: "2026-01-31T23:59:59Z"
 
-# Which planes are exercised
-planes:
+# Which domains are exercised
+domains:
   - identity
 
 # Expected outcome summary (for quick reference, not validation)
@@ -180,15 +180,15 @@ variant: "baseline"
 # Tags for test selection
 tags:
   - credential_change
-  - identity_plane
+  - identity_domain
   - complete_coverage
 ```
 
 ---
 
-## Canonical Fixtures (Mode A)
+## Normalized Fixtures (Mode A)
 
-These files contain **already-normalized canonical objects**, not raw vendor logs.
+These files contain **already-normalized records**, not raw vendor logs.
 
 ### Entity Catalog (`entities.ndjson`)
 
@@ -200,12 +200,12 @@ These files contain **already-normalized canonical objects**, not raw vendor log
 {"id": "session_01", "tlp": "GREEN", "entity_type": "session", "kind": "web_session", "display_name": "alice session 2026-01-15", "refs": [{"ref_type": "session_id", "system": "okta", "value": "sess789"}]}
 ```
 
-**What this represents**: The output of a plane adapter's normalization process, not raw IdP records.
+**What this represents**: The output of a domain integration's normalization process, not raw IdP records.
 
 **Key Rules**:
 - One JSON object per line (no array wrapper)
-- `id` field is the canonical entity ID within the case
-- `refs[]` provides pointers back to external system identifiers (traceability)
+- `id` field is the normalized entity ID within the case
+- `refs[]` provides source references pointing back to external system identifiers (traceability)
 - All entities referenced by events MUST be in this file
 
 ---
@@ -215,16 +215,16 @@ These files contain **already-normalized canonical objects**, not raw vendor log
 **Format**: Newline-delimited JSON (one ActionEvent per line, sorted by timestamp)
 
 ```jsonl
-{"id": "evt_01", "tlp": "GREEN", "plane": "identity", "ts": "2026-01-15T10:30:00Z", "action": "credential.update", "actor": {"actor_entity_id": "principal_alice"}, "targets": [{"target_entity_id": "credential_alice_pw"}], "outcome": "succeeded", "context": {"source_ip": "192.168.1.10", "user_agent": "Mozilla/5.0"}, "raw_refs": [{"ref_type": "event_id", "system": "okta", "value": "evt_okta_001"}]}
-{"id": "evt_02", "tlp": "GREEN", "plane": "identity", "ts": "2026-01-15T10:35:00Z", "action": "auth.login.succeeded", "actor": {"actor_entity_id": "principal_alice"}, "targets": [{"target_entity_id": "session_01"}], "outcome": "succeeded", "context": {"source_ip": "192.168.1.10"}, "raw_refs": [{"ref_type": "event_id", "system": "okta", "value": "evt_okta_002"}]}
+{"id": "evt_01", "tlp": "GREEN", "domain": "identity", "ts": "2026-01-15T10:30:00Z", "action": "credential.update", "actor": {"actor_entity_id": "principal_alice"}, "targets": [{"target_entity_id": "credential_alice_pw"}], "outcome": "succeeded", "context": {"source_ip": "192.168.1.10", "user_agent": "Mozilla/5.0"}, "raw_refs": [{"ref_type": "event_id", "system": "okta", "value": "evt_okta_001"}]}
+{"id": "evt_02", "tlp": "GREEN", "domain": "identity", "ts": "2026-01-15T10:35:00Z", "action": "auth.login.succeeded", "actor": {"actor_entity_id": "principal_alice"}, "targets": [{"target_entity_id": "session_01"}], "outcome": "succeeded", "context": {"source_ip": "192.168.1.10"}, "raw_refs": [{"ref_type": "event_id", "system": "okta", "value": "evt_okta_002"}]}
 ```
 
-**What this represents**: Canonical ActionEvents already normalized from vendor logs.
+**What this represents**: Normalized ActionEvents already normalized from vendor logs.
 
 **Key Rules**:
 - Events MUST be sorted by `ts` ascending
 - `actor.actor_entity_id` and `targets[].target_entity_id` MUST reference entities in `entities.ndjson`
-- `raw_refs[]` is REQUIRED (provenance - points to hypothetical raw log entries)
+- `raw_refs[]` is REQUIRED (source references - points to hypothetical raw log entries)
 - All timestamps MUST be within manifest `time_range`
 
 ---
@@ -234,8 +234,8 @@ These files contain **already-normalized canonical objects**, not raw vendor log
 **Format**: Newline-delimited JSON (one relationship per line)
 
 ```jsonl
-{"id": "rel_01", "tlp": "GREEN", "plane": "identity", "relationship_type": "has_credential", "from_entity_id": "principal_alice", "to_entity_id": "credential_alice_pw", "first_seen": "2026-01-01T00:00:00Z"}
-{"id": "rel_02", "tlp": "GREEN", "plane": "identity", "relationship_type": "authenticated_as", "from_entity_id": "session_01", "to_entity_id": "principal_alice", "first_seen": "2026-01-15T10:35:00Z"}
+{"id": "rel_01", "tlp": "GREEN", "domain": "identity", "relationship_type": "has_credential", "from_entity_id": "principal_alice", "to_entity_id": "credential_alice_pw", "first_seen": "2026-01-01T00:00:00Z"}
+{"id": "rel_02", "tlp": "GREEN", "domain": "identity", "relationship_type": "authenticated_as", "from_entity_id": "session_01", "to_entity_id": "principal_alice", "first_seen": "2026-01-15T10:35:00Z"}
 ```
 
 **Key Rules**:
@@ -249,7 +249,7 @@ These files contain **already-normalized canonical objects**, not raw vendor log
 **Required**: Describes data availability for this scenario.
 
 ```yaml
-plane: identity
+domain: identity
 overall_status: complete  # complete | partial | missing | unknown
 
 sources:
@@ -271,7 +271,7 @@ notes: "Baseline scenario with complete telemetry from all sources"
 
 **Degraded Variant Example**:
 ```yaml
-plane: identity
+domain: identity
 overall_status: partial  # ← Degraded
 
 sources:
@@ -318,7 +318,7 @@ notes: "Degraded: AWS IAM CloudTrail disabled, Okta missing network context"
       "iq_id": "iq_credential_change",
       "statement": "alice@example.com changed credentials during investigation window",
       "likelihood_score": 0.95,
-      "confidence_cap": 1.0,
+      "confidence_limit": 1.0,
       "supporting_claim_ids": ["claim_01"],
       "contradicting_claim_ids": [],
       "gaps": [],
@@ -329,7 +329,7 @@ notes: "Degraded: AWS IAM CloudTrail disabled, Okta missing network context"
 
   "coverage_summary": {
     "overall_status": "complete",
-    "planes": {
+    "domains": {
       "identity": "complete"
     }
   }
@@ -344,7 +344,7 @@ notes: "Degraded: AWS IAM CloudTrail disabled, Okta missing network context"
       "id": "hyp_01",
       "statement": "alice@example.com changed credentials during investigation window",
       "likelihood_score": 0.5,    // ← Neutral (no evidence)
-      "confidence_cap": 0.3,      // ← Low cap due to gaps
+      "confidence_limit": 0.3,    // ← Low limit due to gaps
       "supporting_claim_ids": [],
       "gaps": ["cov_identity_01"],
       "status": "open"            // ← Cannot rule in/out
@@ -352,7 +352,7 @@ notes: "Degraded: AWS IAM CloudTrail disabled, Okta missing network context"
   ],
   "coverage_summary": {
     "overall_status": "partial",  // ← Degraded
-    "planes": {
+    "domains": {
       "identity": "partial"
     }
   }
@@ -377,7 +377,7 @@ notes: "Degraded: AWS IAM CloudTrail disabled, Okta missing network context"
 **Replay Logic**:
 ```python
 # Load events from events.ndjson
-events = load_ndjson("planes/identity/events.ndjson")
+events = load_ndjson("domains/identity/events.ndjson")
 
 # Filter by time range
 filtered = [
@@ -393,12 +393,12 @@ if actions:
 filtered = filtered[:limit]
 
 # Load coverage metadata
-coverage = load_yaml("planes/identity/coverage.yaml")
+coverage = load_yaml("domains/identity/coverage.yaml")
 
 # Return response
 return {
     "status": "success" if coverage["overall_status"] == "complete" else "partial",
-    "plane": "identity",
+    "domain": "identity",
     "items": filtered,
     "coverage_report": build_coverage_report(coverage, time_range)
 }
@@ -414,7 +414,7 @@ return {
 **Replay Logic**:
 ```python
 # Load entities from entities.ndjson
-entities = load_ndjson("planes/identity/entities.ndjson")
+entities = load_ndjson("domains/identity/entities.ndjson")
 
 # Find by ID
 entity = next((e for e in entities if e["id"] == entity_id), None)
@@ -423,11 +423,11 @@ if not entity:
     return {"status": "error", "error": {"code": "entity_not_found"}}
 
 # Load coverage
-coverage = load_yaml("planes/identity/coverage.yaml")
+coverage = load_yaml("domains/identity/coverage.yaml")
 
 return {
     "status": "success",
-    "plane": "identity",
+    "domain": "identity",
     "items": [entity],
     "coverage_report": build_coverage_report(coverage, None)
 }
@@ -443,19 +443,19 @@ return {
 **Replay Logic**:
 ```python
 # Load relationships
-relationships = load_ndjson("planes/identity/relationships.ndjson")
+relationships = load_ndjson("domains/identity/relationships.ndjson")
 
 # Find edges from entity
 edges = [r for r in relationships if r["from_entity_id"] == entity_id]
 
 # Load referenced entities
-entities = load_ndjson("planes/identity/entities.ndjson")
+entities = load_ndjson("domains/identity/entities.ndjson")
 neighbor_ids = [e["to_entity_id"] for e in edges]
 neighbors = [e for e in entities if e["id"] in neighbor_ids]
 
 return {
     "status": "success",
-    "plane": "identity",
+    "domain": "identity",
     "entities": neighbors,
     "relationships": edges,
     "coverage_report": ...
@@ -507,12 +507,12 @@ def normalize_timestamp(scenario_ts: str, scenario_end: str, test_now: str) -> s
 ### 3. Retention Gap Variant
 - **Change**: Remove events outside time window
 - **Effect**: `coverage.yaml` notes: "Retention limited to 90 days"
-- **Expected**: Hypothesis includes `gaps: [...]`, confidence capped
+- **Expected**: Hypothesis includes `gaps: [...]`, confidence limited
 
 ### 4. Ingestion Delay Variant
 - **Change**: Set `data_latency_seconds: 7200` in `coverage.yaml`
 - **Effect**: Recent events (< 2 hours ago) missing from `events.ndjson`
-- **Expected**: Coverage report notes delay, confidence cap if critical window affected
+- **Expected**: Coverage report notes delay, confidence limit applied if critical window affected
 
 ---
 
@@ -527,16 +527,16 @@ async def test_scenario_replay(scenario_name: str):
     manifest = load_yaml(f"scenarios/{scenario_name}/manifest.yaml")
     expected = load_json(f"scenarios/{scenario_name}/expected_output.json")
 
-    # 2. Create replay-backed plane adapters
-    identity_adapter = ReplayIdentityPlane(
-        data_dir=f"scenarios/{scenario_name}/planes/identity"
+    # 2. Create replay-backed domain integrations
+    identity_integration = ReplayIdentityIntegration(
+        data_dir=f"scenarios/{scenario_name}/domains/identity"
     )
 
     # 3. Run investigation
     result = await run_investigation(
         question=manifest["investigation_question"],
         time_range=manifest["time_range"],
-        planes={"identity": identity_adapter}
+        domains={"identity": identity_integration}
     )
 
     # 4. Assert exact match with golden output
@@ -551,8 +551,8 @@ async def test_scenario_replay(scenario_name: str):
 
 **Directory Structure**:
 - `scenarios/{name}/manifest.yaml` - Scenario metadata
-- `scenarios/{name}/planes/{plane}/{entities|events|relationships}.ndjson` - Data
-- `scenarios/{name}/planes/{plane}/coverage.yaml` - Availability metadata
+- `scenarios/{name}/domains/{domain}/{entities|events|relationships}.ndjson` - Data
+- `scenarios/{name}/domains/{domain}/coverage.yaml` - Availability metadata
 - `scenarios/{name}/expected_output.json` - Golden output
 
 **Key Principles**:
@@ -573,7 +573,7 @@ If implementing Mode B for one scenario:
 ```
 scenarios/credential_change_raw/
 ├── manifest.yaml
-├── planes/
+├── domains/
 │   └── identity/
 │       ├── raw/
 │       │   └── okta_system_log.jsonl    # Raw vendor logs
@@ -619,7 +619,7 @@ mappings:
 **Normalization Function** (`services/identity/normalize.py`):
 ```python
 def normalize_okta_event(raw_event: dict, mappings: dict) -> Tuple[ActionEvent, List[Entity]]:
-    """Convert raw Okta log to canonical ActionEvent + Entities"""
+    """Convert raw Okta log to normalized ActionEvent + Entities"""
     # Implementation reads field_mappings.yaml and applies transforms
     pass
 ```

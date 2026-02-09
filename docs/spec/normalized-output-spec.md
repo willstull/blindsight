@@ -1,15 +1,15 @@
-# Canonical Output Specification
+# Normalized Output Specification
 
 > Single source of truth for all MCP tool responses
 
 ## Universal Response Envelope
 
-**Every MCP tool** in every plane MUST return this structure:
+**Every MCP tool** in every domain MUST return this structure:
 
 ```python
 {
     "status": "success" | "partial" | "error",
-    "plane": str,                           # Which plane generated this
+    "domain": str,                          # Which domain generated this
     "coverage_report": CoverageReport,      # ALWAYS present (even if "unknown")
 
     # Data fields (tool-specific, optional based on status)
@@ -47,7 +47,7 @@
 {
     "id": str,                    # ULID
     "tlp": "RED" | "AMBER" | "AMBER_STRICT" | "GREEN" | "CLEAR",
-    "plane": str,
+    "domain": str,
     "time_range": {
         "start": str,             # RFC3339 timestamp
         "end": str
@@ -80,7 +80,7 @@ When a tool **cannot answer** the question due to missing data:
 ```python
 {
     "status": "partial",                    # Not "error"
-    "plane": "identity",
+    "domain": "identity",
     "items": [],                            # Empty results
     "limitations": [
         "Okta logs unavailable for requested time range",
@@ -104,12 +104,12 @@ When a tool **cannot answer** the question due to missing data:
 
 ## Items Array (Data Payload)
 
-All data objects in `items[]` follow canonical schemas from `ontology.yaml`:
+All data objects in `items[]` follow normalized schemas from `ontology.yaml`:
 
 ### Entity
 ```python
 {
-    "id": str,                    # Canonical entity ID (within case)
+    "id": str,                    # Normalized entity ID (within case)
     "tlp": str,
     "entity_type": "principal" | "credential" | "session" | ...,
     "kind": str,                  # Domain-specific subtype
@@ -127,7 +127,7 @@ All data objects in `items[]` follow canonical schemas from `ontology.yaml`:
 {
     "id": str,
     "tlp": str,
-    "plane": str,
+    "domain": str,
     "ts": str,                    # RFC3339 timestamp
     "action": str,                # Taxonomy string (e.g., "auth.login.succeeded")
     "actor": {
@@ -142,7 +142,7 @@ All data objects in `items[]` follow canonical schemas from `ontology.yaml`:
     "outcome": "succeeded" | "failed" | "unknown",
     "context": {...},             # Normalized fields (source_ip, user_agent, ...)
     "related_entity_ids": [str],  # Optional: other relevant entities
-    "raw_refs": [Ref],            # MUST include provenance pointers
+    "raw_refs": [Ref],            # MUST include source references
     "ingested_at": str            # Optional: when event was collected
 }
 ```
@@ -152,7 +152,7 @@ All data objects in `items[]` follow canonical schemas from `ontology.yaml`:
 {
     "id": str,
     "tlp": str,
-    "plane": str,
+    "domain": str,
     "relationship_type": str,     # "has_credential", "member_of", ...
     "from_entity_id": str,
     "to_entity_id": str,
@@ -162,7 +162,7 @@ All data objects in `items[]` follow canonical schemas from `ontology.yaml`:
 }
 ```
 
-### Ref (Provenance Pointer)
+### Ref (Source Reference)
 ```python
 {
     "ref_type": str,              # "event_id", "log_pointer", "user_id", "ticket_id"
@@ -224,7 +224,7 @@ These field names are **locked** and MUST be consistent across all tools:
 | Field | Type | Meaning |
 |-------|------|---------|
 | `status` | str | success \| partial \| error |
-| `plane` | str | Which plane generated this |
+| `domain` | str | Which domain generated this |
 | `coverage_report` | object | Data availability report |
 | `items` | array | Main data payload |
 | `error` | object | Structured error (if failed) |
@@ -242,7 +242,7 @@ These field names are **locked** and MUST be consistent across all tools:
 ```json
 {
   "status": "success",
-  "plane": "identity",
+  "domain": "identity",
   "request_id": "01HZYYCRN0WX...",
   "items": [
     {
@@ -266,7 +266,7 @@ These field names are **locked** and MUST be consistent across all tools:
 ```json
 {
   "status": "partial",
-  "plane": "identity",
+  "domain": "identity",
   "request_id": "01HZYYCRN0WX...",
   "items": [
     {"id": "evt_01", ...}
@@ -292,7 +292,7 @@ These field names are **locked** and MUST be consistent across all tools:
 ```json
 {
   "status": "error",
-  "plane": "identity",
+  "domain": "identity",
   "request_id": "01HZYYCRN0WX...",
   "error": {
     "code": "time_range_required",
@@ -313,7 +313,7 @@ These field names are **locked** and MUST be consistent across all tools:
 ```json
 {
   "status": "success",
-  "plane": "identity",
+  "domain": "identity",
   "request_id": "01HZYYCRN0WX...",
   "items": [],
   "coverage_report": {
@@ -329,52 +329,52 @@ These field names are **locked** and MUST be consistent across all tools:
 
 ---
 
-## Hypothesis Confidence Capping Rule
+## Hypothesis Confidence Limiting Rule
 
 **Downstream scoring MUST apply this rule**:
 
 ```python
 def compute_hypothesis_confidence(hypothesis, coverage_reports):
     """
-    Confidence cap is determined by worst coverage status in evidence chain.
+    Confidence limit is determined by worst coverage status in evidence chain.
     """
     likelihood_score = compute_likelihood(hypothesis.claims)  # 0.0-1.0
 
-    # Cap based on coverage
-    coverage_cap = 1.0
+    # Limit based on coverage
+    confidence_limit = 1.0
     for cov in coverage_reports:
         if cov.overall_status == "complete":
-            coverage_cap = min(coverage_cap, 1.0)
+            confidence_limit = min(confidence_limit, 1.0)
         elif cov.overall_status == "partial":
-            coverage_cap = min(coverage_cap, 0.7)  # Reduced confidence
+            confidence_limit = min(confidence_limit, 0.7)  # Reduced confidence
         elif cov.overall_status == "missing":
-            coverage_cap = min(coverage_cap, 0.3)  # Very low confidence
+            confidence_limit = min(confidence_limit, 0.3)  # Very low confidence
         elif cov.overall_status == "unknown":
-            coverage_cap = min(coverage_cap, 0.5)  # Medium confidence
+            confidence_limit = min(confidence_limit, 0.5)  # Medium confidence
 
     return {
         "likelihood_score": likelihood_score,
-        "confidence_cap": coverage_cap,
-        "final_confidence": min(likelihood_score, coverage_cap)  # Take minimum
+        "confidence_limit": confidence_limit,
+        "final_confidence": min(likelihood_score, confidence_limit)  # Take minimum
     }
 ```
 
 **Example**:
 - Strong evidence → likelihood = 0.95
-- But Okta logs missing → coverage_cap = 0.3
+- But Okta logs missing → confidence_limit = 0.3
 - **Final confidence = 0.3** (cannot be more certain than data allows)
 
 ---
 
-## Summary: Canonical Output Contract
+## Summary: Normalized Output Contract
 
 Every tool response MUST:
-1. ✅ Include `status`, `plane`, `coverage_report`, `request_id`
+1. ✅ Include `status`, `domain`, `coverage_report`, `request_id`
 2. ✅ Use "partial" status when data has gaps (not "error")
 3. ✅ Include coverage_report even if "unknown"
 4. ✅ Populate `limitations[]` with human-readable gap explanations
 5. ✅ Use stable field names from this spec (no synonyms)
-6. ✅ Follow canonical schemas from `ontology.yaml` for items
-7. ✅ Include `raw_refs` for all ActionEvents (provenance required)
+6. ✅ Follow normalized schemas from `ontology.yaml` for items
+7. ✅ Include `raw_refs` for all ActionEvents (source references required)
 
 This spec is the **single source of truth** for tool output structure.

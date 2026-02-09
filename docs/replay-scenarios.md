@@ -35,15 +35,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "credentials changed": likelihood=1.0, confidence_cap=1.0 (final=1.0)
+- Hypothesis "credentials changed": likelihood=1.0, confidence_limit=1.0 (final=1.0)
 
 **Degraded Variants:**
 - **1a. Missing Source (Retention Gap)**: Identity provider unavailable 2026-01-10 to 2026-01-20
-  - Expected: likelihood=0.5 (partial evidence), confidence_cap=0.6 (gap includes event window)
+  - Expected: likelihood=0.5 (partial evidence), confidence_limit=0.6 (gap includes event window)
 - **1b. Missing Fields**: `source_ip` and `user_agent` fields absent from all events
-  - Expected: likelihood=1.0 (core fields present), confidence_cap=0.8 (context limited)
+  - Expected: likelihood=1.0 (core fields present), confidence_limit=0.8 (context limited)
 - **1c. Partial Source**: Only password events, MFA events missing
-  - Expected: likelihood=0.7 (partial evidence), confidence_cap=0.7 (MFA visibility gap)
+  - Expected: likelihood=0.7 (partial evidence), confidence_limit=0.7 (MFA visibility gap)
 
 ---
 
@@ -69,15 +69,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "privilege escalation occurred": likelihood=1.0, confidence_cap=1.0
+- Hypothesis "privilege escalation occurred": likelihood=1.0, confidence_limit=1.0
 
 **Degraded Variants:**
 - **2a. Authorization System Unavailable**: Authorization logs missing for entire window
-  - Expected: likelihood=0.3 (indirect evidence only), confidence_cap=0.4 (critical source missing)
+  - Expected: likelihood=0.3 (indirect evidence only), confidence_limit=0.4 (critical source missing)
 - **2b. Group Membership Fields Missing**: Group change events present but `group_name` field absent
-  - Expected: likelihood=0.6 (event present, details unclear), confidence_cap=0.7 (limited attribution)
+  - Expected: likelihood=0.6 (event present, details unclear), confidence_limit=0.7 (limited attribution)
 - **2c. Delayed Ingestion**: Privilege change event has 24h data latency
-  - Expected: likelihood=1.0 (event visible), confidence_cap=0.8 (latency introduces uncertainty)
+  - Expected: likelihood=1.0 (event visible), confidence_limit=0.8 (latency introduces uncertainty)
 
 ---
 
@@ -103,15 +103,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "session hijacked": likelihood=0.9, confidence_cap=1.0
+- Hypothesis "session hijacked": likelihood=0.9, confidence_limit=1.0
 
 **Degraded Variants:**
 - **3a. Network Metadata Missing**: `source_ip` field absent from all events
-  - Expected: likelihood=0.4 (cannot verify IP change), confidence_cap=0.5 (key indicator missing)
+  - Expected: likelihood=0.4 (cannot verify IP change), confidence_limit=0.5 (key indicator missing)
 - **3b. Partial Session Visibility**: Events for first half of session missing
-  - Expected: likelihood=0.5 (partial timeline), confidence_cap=0.6 (gap at critical transition)
+  - Expected: likelihood=0.5 (partial timeline), confidence_limit=0.6 (gap at critical transition)
 - **3c. Device Tracking Unavailable**: Device entities missing, only session entity present
-  - Expected: likelihood=0.6 (IP change visible, device correlation missing), confidence_cap=0.7
+  - Expected: likelihood=0.6 (IP change visible, device correlation missing), confidence_limit=0.7
 
 ---
 
@@ -135,15 +135,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "compromise led to data exfiltration": likelihood=0.95, confidence_cap=1.0
+- Hypothesis "compromise led to data exfiltration": likelihood=0.95, confidence_limit=1.0
 
 **Degraded Variants:**
 - **4a. Resource Access Logs Missing**: File access events absent
-  - Expected: likelihood=0.5 (authentication visible, actions unclear), confidence_cap=0.6 (critical plane missing)
+  - Expected: likelihood=0.5 (authentication visible, actions unclear), confidence_limit=0.6 (critical domain missing)
 - **4b. Pre-Compromise Baseline Missing**: Events before 2026-01-20 unavailable
-  - Expected: likelihood=0.7 (post-compromise visible), confidence_cap=0.75 (no behavior baseline)
+  - Expected: likelihood=0.7 (post-compromise visible), confidence_limit=0.75 (no behavior baseline)
 - **4c. Credential Change Events Missing**: Cannot verify if attacker changed credentials
-  - Expected: likelihood=0.8 (actions visible), confidence_cap=0.85 (persistence mechanism unclear)
+  - Expected: likelihood=0.8 (actions visible), confidence_limit=0.85 (persistence mechanism unclear)
 
 ---
 
@@ -167,15 +167,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "brute force attack occurred": likelihood=1.0, confidence_cap=1.0
+- Hypothesis "brute force attack occurred": likelihood=1.0, confidence_limit=1.0
 
 **Degraded Variants:**
 - **5a. Failed Auth Logging Disabled**: Only successful auth events logged
-  - Expected: likelihood=0.1 (no direct evidence), confidence_cap=0.2 (critical events missing)
+  - Expected: likelihood=0.1 (no direct evidence), confidence_limit=0.2 (critical events missing)
 - **5b. Source IP Field Missing**: Failed events present, `source_ip` absent
-  - Expected: likelihood=0.7 (event count visible), confidence_cap=0.8 (attribution limited)
+  - Expected: likelihood=0.7 (event count visible), confidence_limit=0.8 (attribution limited)
 - **5c. Time Window Gap**: Events for 08:10-08:20 missing (middle of attack window)
-  - Expected: likelihood=0.6 (partial pattern visible), confidence_cap=0.65 (peak timing unclear)
+  - Expected: likelihood=0.6 (partial pattern visible), confidence_limit=0.65 (peak timing unclear)
 
 ---
 
@@ -199,15 +199,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "rapid IP change indicates compromise": likelihood=0.85, confidence_cap=1.0
+- Hypothesis "rapid IP change indicates compromise": likelihood=0.85, confidence_limit=1.0
 
 **Degraded Variants:**
 - **6a. Source IP Field Missing**: Authentication events present, `source_ip` absent
-  - Expected: likelihood=0.2 (cannot verify IP pattern), confidence_cap=0.3 (key field missing)
+  - Expected: likelihood=0.2 (cannot verify IP pattern), confidence_limit=0.3 (key field missing)
 - **6b. Partial Event Visibility**: Only 3 of 5 authentication events visible
-  - Expected: likelihood=0.5 (partial pattern), confidence_cap=0.6 (incomplete timeline)
+  - Expected: likelihood=0.5 (partial pattern), confidence_limit=0.6 (incomplete timeline)
 - **6c. Coarse Timestamp Precision**: Event timestamps rounded to nearest 10 minutes
-  - Expected: likelihood=0.6 (IP changes visible, rapid timing unclear), confidence_cap=0.7
+  - Expected: likelihood=0.6 (IP changes visible, rapid timing unclear), confidence_limit=0.7
 
 ---
 
@@ -232,15 +232,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "shared source IP indicates proxy or compromise": likelihood=0.8, confidence_cap=1.0
+- Hypothesis "shared source IP indicates proxy or compromise": likelihood=0.8, confidence_limit=1.0
 
 **Degraded Variants:**
 - **7a. Source IP Field Missing**: Authentication events present, `source_ip` absent
-  - Expected: likelihood=0.1 (cannot detect pattern), confidence_cap=0.2 (correlation impossible)
+  - Expected: likelihood=0.1 (cannot detect pattern), confidence_limit=0.2 (correlation impossible)
 - **7b. Partial Principal Visibility**: Only 2 of 4 principals' events visible
-  - Expected: likelihood=0.4 (partial pattern), confidence_cap=0.5 (scope unclear)
+  - Expected: likelihood=0.4 (partial pattern), confidence_limit=0.5 (scope unclear)
 - **7c. Session Correlation Missing**: Events visible but session entities absent
-  - Expected: likelihood=0.6 (IP pattern visible, session correlation unclear), confidence_cap=0.7
+  - Expected: likelihood=0.6 (IP pattern visible, session correlation unclear), confidence_limit=0.7
 
 ---
 
@@ -265,15 +265,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "MFA fatigue attack succeeded": likelihood=0.95, confidence_cap=1.0
+- Hypothesis "MFA fatigue attack succeeded": likelihood=0.95, confidence_limit=1.0
 
 **Degraded Variants:**
 - **8a. MFA Challenge Logs Missing**: Only successful auth event visible, no challenge denials
-  - Expected: likelihood=0.2 (cannot verify fatigue pattern), confidence_cap=0.3 (critical logs missing)
+  - Expected: likelihood=0.2 (cannot verify fatigue pattern), confidence_limit=0.3 (critical logs missing)
 - **8b. Challenge Outcome Field Missing**: MFA events present, `challenge_outcome` absent
-  - Expected: likelihood=0.4 (event count visible, denials unclear), confidence_cap=0.5
+  - Expected: likelihood=0.4 (event count visible, denials unclear), confidence_limit=0.5
 - **8c. Partial Challenge Window**: First 10 challenges missing, only last 5 + approval visible
-  - Expected: likelihood=0.6 (partial pattern), confidence_cap=0.7 (full scope unclear)
+  - Expected: likelihood=0.6 (partial pattern), confidence_limit=0.7 (full scope unclear)
 
 ---
 
@@ -298,15 +298,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "attacker added MFA method for persistence": likelihood=0.9, confidence_cap=1.0
+- Hypothesis "attacker added MFA method for persistence": likelihood=0.9, confidence_limit=1.0
 
 **Degraded Variants:**
 - **9a. Credential Change Events Missing**: Login visible, MFA enrollment event absent
-  - Expected: likelihood=0.3 (cannot verify new method), confidence_cap=0.4
+  - Expected: likelihood=0.3 (cannot verify new method), confidence_limit=0.4
 - **9b. MFA Method Details Missing**: Enrollment visible, method type/phone number absent
-  - Expected: likelihood=0.6 (timing visible, attribution limited), confidence_cap=0.7
+  - Expected: likelihood=0.6 (timing visible, attribution limited), confidence_limit=0.7
 - **9c. Time Correlation Gap**: Enrollment and login timestamps both rounded to nearest hour
-  - Expected: likelihood=0.5 (events present, suspicious timing unclear), confidence_cap=0.6
+  - Expected: likelihood=0.5 (events present, suspicious timing unclear), confidence_limit=0.6
 
 ---
 
@@ -331,15 +331,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "malicious OAuth app authorized": likelihood=0.85, confidence_cap=1.0
+- Hypothesis "malicious OAuth app authorized": likelihood=0.85, confidence_limit=1.0
 
 **Degraded Variants:**
 - **10a. OAuth Audit Logs Missing**: No consent grant events, only usage logs
-  - Expected: likelihood=0.4 (usage visible, authorization unclear), confidence_cap=0.5
+  - Expected: likelihood=0.4 (usage visible, authorization unclear), confidence_limit=0.5
 - **10b. Scopes Field Missing**: Consent event present, `scopes_granted` absent
-  - Expected: likelihood=0.6 (grant visible, permission level unclear), confidence_cap=0.7
+  - Expected: likelihood=0.6 (grant visible, permission level unclear), confidence_limit=0.7
 - **10c. App Metadata Missing**: Event present, `app_name` and `oauth_client_id` absent
-  - Expected: likelihood=0.5 (grant visible, app identity unclear), confidence_cap=0.6
+  - Expected: likelihood=0.5 (grant visible, app identity unclear), confidence_limit=0.6
 
 ---
 
@@ -366,15 +366,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "support access abused": likelihood=0.8, confidence_cap=1.0
+- Hypothesis "support access abused": likelihood=0.8, confidence_limit=1.0
 
 **Degraded Variants:**
 - **11a. Authorization Logs Missing**: Action events visible, grant/revoke events absent
-  - Expected: likelihood=0.5 (actions visible, authorization unclear), confidence_cap=0.6
+  - Expected: likelihood=0.5 (actions visible, authorization unclear), confidence_limit=0.6
 - **11b. Acting-As Context Missing**: Events present, `acting_as` field absent
-  - Expected: likelihood=0.3 (cannot distinguish impersonation from normal activity), confidence_cap=0.4
+  - Expected: likelihood=0.3 (cannot distinguish impersonation from normal activity), confidence_limit=0.4
 - **11c. Revoke Event Missing**: Grant and actions visible, revoke event absent
-  - Expected: likelihood=0.6 (access grant visible, removal unclear), confidence_cap=0.7
+  - Expected: likelihood=0.6 (access grant visible, removal unclear), confidence_limit=0.7
 
 ---
 
@@ -399,15 +399,15 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Overall status: complete
 
 **Expected Confidence:**
-- Hypothesis "service account key compromised": likelihood=0.85, confidence_cap=1.0
+- Hypothesis "service account key compromised": likelihood=0.85, confidence_limit=1.0
 
 **Degraded Variants:**
 - **12a. Key Creation Events Missing**: API usage visible, creation event absent
-  - Expected: likelihood=0.4 (cannot verify new key), confidence_cap=0.5
+  - Expected: likelihood=0.4 (cannot verify new key), confidence_limit=0.5
 - **12b. Key ID Missing**: Events present, `key_id` field absent (cannot correlate creation to usage)
-  - Expected: likelihood=0.5 (timing visible, key correlation unclear), confidence_cap=0.6
+  - Expected: likelihood=0.5 (timing visible, key correlation unclear), confidence_limit=0.6
 - **12c. Created-By Field Missing**: Creation visible, actor who created key absent
-  - Expected: likelihood=0.7 (key creation visible, attribution unclear), confidence_cap=0.8
+  - Expected: likelihood=0.7 (key creation visible, attribution unclear), confidence_limit=0.8
 
 ---
 
@@ -425,8 +425,8 @@ All scenarios stored in `tests/fixtures/replay/scenarios/{scenario_name}/`
 - Pass threshold: 100% of claims have complete provenance chain
 
 ### Correctness of Missing-Data Reporting
-- Baseline scenarios: overall_status = "complete", confidence_cap >= 0.9
-- Degraded scenarios: overall_status = "partial" or "missing", confidence_cap < baseline
+- Baseline scenarios: overall_status = "complete", confidence_limit >= 0.9
+- Degraded scenarios: overall_status = "partial" or "missing", confidence_limit < baseline
 - Pass threshold: All scenarios report correct status
 
 ### Bounded Runtime

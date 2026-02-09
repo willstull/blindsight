@@ -7,18 +7,18 @@ Blindsight is a hypothesis-driven incident investigation system that demonstrate
 ## In Scope
 
 **Core Components:**
-- Identity plane MCP server (replay-backed, optionally live-backed)
-- Case plane MCP server (DuckDB-backed persistence and correlation)
+- Identity domain MCP server (replay-backed, optionally live-backed)
+- Case MCP server (DuckDB-backed persistence and correlation)
 - Replay dataset format with baseline and degraded variants
 - Coverage report generation (explicit gap tracking)
-- Gap-aware hypothesis scoring (likelihood vs confidence cap)
+- Coverage-aware hypothesis scoring (likelihood vs confidence limit)
 
 **Implementation Scope:**
-- Tool contract + schema discipline (12 identity tools, 5+ case tools)
+- Tool contracts + schema discipline (12 identity tools, 5+ case tools)
 - Replay dataset format (NDJSON fixtures with coverage metadata)
 - Deterministic evaluation harness with degraded variants (6+ scenarios)
 - Case record persistence (DuckDB with entities, events, relationships, claims, hypotheses)
-- Normalization + canonical IDs + correlation pivots
+- Normalization + normalized IDs + correlation pivots
 - Coverage/missing-data reporting (machine-readable and human-readable)
 - Regression tests (golden output comparison)
 
@@ -26,7 +26,7 @@ Blindsight is a hypothesis-driven incident investigation system that demonstrate
 - 6+ replay scenarios (3 baseline, 3+ degraded)
 - Deterministic: same inputs produce identical outputs
 - Traceable: every claim links to evidence links to raw source
-- Gap-aware: missing data reduces confidence caps (verified with degraded variants)
+- Coverage-aware: missing data reduces confidence limits (verified with degraded variants)
 
 ## Out of Scope
 
@@ -36,7 +36,7 @@ Blindsight is a hypothesis-driven incident investigation system that demonstrate
 - Primary query/search UI for logs (Splunk/Datadog/etc. remain that)
 - ML anomaly detection
 - Automated remediation
-- Many integrations (one evidence plane proves the pattern)
+- Many integrations (one evidence domain proves the pattern)
 - Full ITSM/case management
 
 **System will NOT claim:**
@@ -50,13 +50,13 @@ Blindsight is a hypothesis-driven incident investigation system that demonstrate
 - Explicit tracking of what can and cannot be verified
 - Reproducible investigations via tool-call history
 - Correlation across entities/events within a case
-- Gap-aware confidence bounds on conclusions
+- Coverage-aware confidence limits on conclusions
 
 ## Success Criteria (End of Semester)
 
 **Technical Deliverables:**
-1. Two working MCP servers (identity plane + case plane)
-2. Replay adapter implementing PlaneAdapter interface
+1. Two working MCP servers (identity domain + case MCP server)
+2. Replay integration implementing DomainIntegration interface
 3. 6+ replay scenarios (baseline + degraded variants)
 4. DuckDB case store with correlation queries working
 5. Golden output comparison working (regression detection)
@@ -65,8 +65,8 @@ Blindsight is a hypothesis-driven incident investigation system that demonstrate
 
 **Evaluation Metrics:**
 1. **Deterministic**: 10 runs of same scenario produce identical outputs (verified)
-2. **Traceable**: Every claim → evidence → raw source (verified via refs)
-3. **Gap-aware**: Degraded variants produce reduced confidence (verified)
+2. **Traceable**: Every claim → evidence → raw source (verified via source references)
+3. **Coverage-aware**: Degraded variants produce reduced confidence (verified)
 4. **Reproducible**: Tool-call history enables investigation replay
 
 **Documentation:**
@@ -84,14 +84,14 @@ Blindsight is a hypothesis-driven incident investigation system that demonstrate
 ## What Constitutes "Done"
 
 **Minimum viable practicum:**
-- Identity plane returns deterministic results from replay fixtures
-- Case plane stores and correlates canonical objects
+- Identity domain returns deterministic results from replay fixtures
+- Case MCP server stores and correlates normalized records
 - 3 baseline scenarios pass with expected outputs
-- 3 degraded scenarios show reduced confidence bounds
+- 3 degraded scenarios show reduced confidence limits
 - Documentation complete (specs, ADRs, writeup)
 
 **Stretch goals (if time permits):**
-- One live source adapter (Okta, AWS CloudTrail, or Azure AD)
+- One live source integration (Okta, AWS CloudTrail, or Azure AD)
 - Claims/hypotheses generation (beyond just storing entities/events)
 - 10+ replay scenarios covering more investigation patterns
 - Performance benchmarks on replay execution time

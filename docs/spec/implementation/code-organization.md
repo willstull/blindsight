@@ -6,15 +6,15 @@ This document defines the structure and conventions for Blindsight implementatio
 
 Two MCP servers:
 
-1. **Identity Plane**: Evidence plane providing normalized identity telemetry (replay-backed, optionally live-backed)
-2. **Case Plane**: Case record store providing persistence, correlation queries, and export/replay
+1. **Identity MCP Server**: Evidence domain providing normalized identity telemetry (replay-backed, optionally live-backed)
+2. **Case MCP Server**: Case record store providing persistence, correlation queries, and export/replay
 
 This is not "just an MCP server." The practicum demonstrates:
 - Tool contract + schema discipline
 - Replay dataset format
 - Deterministic evaluation harness with degraded variants
 - Case record persistence (DuckDB)
-- Normalization + canonical IDs + correlation pivots
+- Normalization + normalized IDs + correlation pivots
 - Coverage/missing-data reporting
 - Regression tests (golden outputs)
 
@@ -25,28 +25,28 @@ src/
   types/
     core.py            # Entity, ActionEvent, Relationship, CoverageReport,
                        # EvidenceItem, Claim, Hypothesis, Case
-    adapter.py         # AdapterResponse, PlaneAdapter interface
+    integration.py     # IntegrationResponse, DomainIntegration interface
     envelope.py        # ResponseEnvelope, Status enum
     result.py          # Result[T, E] union type
     errors.py          # PipelineError, ValidationIssue
 
   services/
     identity/
-      replay_adapter.py   # ReplayIdentityPlane implementation
-      live_adapter.py     # LiveIdentityPlane stub (optional)
-      validator.py        # Request validation functions
-      coverage.py         # Coverage report generation
-      normalize.py        # Normalization functions (raw → canonical)
+      replay_integration.py  # ReplayIdentityIntegration implementation
+      live_integration.py    # LiveIdentityIntegration stub (optional)
+      validator.py           # Request validation functions
+      coverage.py            # Coverage report generation
+      normalize.py           # Normalization functions (raw → normalized)
 
     case/
       store.py         # DuckDB case store operations
-      ingest.py        # Ingest canonical objects into case
+      ingest.py        # Ingest normalized records into case
       query.py         # Correlation queries across entities/events
       export.py        # Export case data (for replay/archival)
 
   servers/
-    identity_mcp.py    # Identity plane MCP server
-    case_mcp.py        # Case plane MCP server
+    identity_mcp.py    # Identity domain MCP server
+    case_mcp.py        # Case MCP server
 
   utils/
     logging.py         # Logger factory
@@ -60,7 +60,7 @@ tests/
       scenarios/
         baseline/              # Complete coverage scenario
           manifest.yaml
-          planes/identity/
+          domains/identity/
             entities.ndjson
             events.ndjson
             relationships.ndjson
@@ -73,7 +73,7 @@ tests/
   unit/
     services/
       identity/
-        test_replay_adapter.py
+        test_replay_integration.py
         test_validator.py
         test_coverage.py
         test_normalize.py
@@ -125,7 +125,7 @@ class Entity:
 class ActionEvent:
     id: str
     tlp: str
-    plane: str
+    domain: str
     ts: datetime
     action: str
     actor: 'Actor'
@@ -140,7 +140,7 @@ class ActionEvent:
 class CoverageReport:
     id: str
     tlp: str
-    plane: str
+    domain: str
     time_range: 'TimeRange'
     overall_status: str
     sources: List['SourceStatus']
@@ -164,12 +164,12 @@ class Case:
     tags: Optional[List[str]] = None
 ```
 
-## Service Functions: Identity Plane
+## Service Functions: Identity Domain
 
 Identity services provide evidence from telemetry sources.
 
 ```python
-# services/identity/replay_adapter.py
+# services/identity/replay_integration.py
 from result import Result, Ok, Err
 from pathlib import Path
 from logging import Logger
@@ -185,7 +185,7 @@ def load_entities(
 ) -> Result[List[Entity], Exception]:
     """Load entities from NDJSON fixture."""
     try:
-        entities_file = scenario_path / "planes" / "identity" / "entities.ndjson"
+        entities_file = scenario_path / "domains" / "identity" / "entities.ndjson"
 
         if not entities_file.exists():
             logger.warning(f"Entities file not found: {entities_file}")
@@ -233,7 +233,7 @@ def search_events(
         return Err(ex)
 ```
 
-## Service Functions: Case Plane
+## Service Functions: Case MCP Server
 
 Case services provide persistence and correlation.
 
@@ -275,7 +275,7 @@ def create_case_db(
             CREATE TABLE IF NOT EXISTS events (
                 id VARCHAR PRIMARY KEY,
                 tlp VARCHAR,
-                plane VARCHAR,
+                domain VARCHAR,
                 ts TIMESTAMP,
                 action VARCHAR,
                 actor JSON,
@@ -417,13 +417,13 @@ from fastmcp import FastMCP
 from logging import Logger
 from pathlib import Path
 
-from services.identity.replay_adapter import load_entities, search_events
+from services.identity.replay_integration import load_entities, search_events
 from services.identity.coverage import generate_coverage_report
 from services.identity.validator import validate_time_range
 from utils.logging import get_logger
 from utils.ulid import generate_ulid
 
-mcp = FastMCP("blindsight-identity-plane")
+mcp = FastMCP("blindsight-identity-mcp")
 
 @mcp.tool()
 def search_events_tool(
@@ -436,7 +436,7 @@ def search_events_tool(
     """Search normalized identity events within time range."""
 
     # Setup resources at entrypoint
-    logger = get_logger("identity_plane")
+    logger = get_logger("identity_domain")
     request_id = generate_ulid()
     logger = logger.bind(request_id=request_id)  # Enrich logger
 
@@ -454,7 +454,7 @@ def search_events_tool(
         issue = validate_op.err()
         return {
             "status": "error",
-            "plane": "identity",
+            "domain": "identity",
             "error": {
                 "code": issue.code,
                 "message": issue.message,
@@ -469,7 +469,7 @@ def search_events_tool(
         logger.error("Failed to load events")
         return {
             "status": "error",
-            "plane": "identity",
+            "domain": "identity",
             "error": {
                 "code": "load_failed",
                 "message": "Failed to load event fixtures"
@@ -485,7 +485,7 @@ def search_events_tool(
         logger.error("Search failed")
         return {
             "status": "error",
-            "plane": "identity",
+            "domain": "identity",
             "error": {
                 "code": "search_failed",
                 "message": "Search operation failed"
@@ -505,7 +505,7 @@ def search_events_tool(
 
     return {
         "status": "success",
-        "plane": "identity",
+        "domain": "identity",
         "coverage_report": coverage.__dict__ if coverage else None,
         "items": [event.__dict__ for event in results],
         "request_id": request_id
@@ -526,13 +526,13 @@ from services.case.query import get_entity_neighbors, get_events_by_actor
 from utils.logging import get_logger
 from utils.ulid import generate_ulid
 
-mcp = FastMCP("blindsight-case-plane")
+mcp = FastMCP("blindsight-case-mcp")
 
 @mcp.tool()
 def ingest_entities_tool(case_id: str, entities: list[dict]) -> dict:
     """Ingest entities into case store."""
 
-    logger = get_logger("case_plane")
+    logger = get_logger("case_mcp")
     request_id = generate_ulid()
     logger = logger.bind(request_id=request_id, case_id=case_id)
 
@@ -579,7 +579,7 @@ def ingest_entities_tool(case_id: str, entities: list[dict]) -> dict:
 def get_neighbors_tool(case_id: str, entity_id: str) -> dict:
     """Get related entities via relationships (correlation query)."""
 
-    logger = get_logger("case_plane")
+    logger = get_logger("case_mcp")
     request_id = generate_ulid()
     logger = logger.bind(request_id=request_id, case_id=case_id)
 
@@ -663,7 +663,7 @@ def test_correlation_query():
     rel = Relationship(
         id="rel-1",
         tlp="GREEN",
-        plane="identity",
+        domain="identity",
         relationship_type="authenticated_as",
         from_entity_id="session-1",
         to_entity_id="user-1"
@@ -701,9 +701,9 @@ Services should not import other services. Compose at entrypoint (server).
 
 This is not generic MCP advice. This is Blindsight-specific:
 
-1. **Two planes**: Identity (evidence) + Case (correlation/persistence)
+1. **Two MCP servers**: Identity domain (evidence) + Case (correlation/persistence)
 2. **Result types throughout**: No exceptions as control flow
 3. **Safeloop organization**: entrypoints → services → types
 4. **Pass logger explicitly**: Enriched at entrypoint, passed to services
-5. **DuckDB for case store**: Correlation queries prove multi-plane capability
+5. **DuckDB for case store**: Correlation queries prove multi-domain capability
 6. **Replay fixtures for evaluation**: Deterministic testing with degraded variants

@@ -2,13 +2,13 @@
 
 ## Milestone 1: Replay-Backed Identity Server
 
-**Outcome**: MCP server implementing identity plane tools using replay datasets. Server returns deterministic results for all query tools.
+**Outcome**: MCP server implementing identity domain tools using replay datasets. Server returns deterministic results for all query tools.
 
 **Capabilities**:
-- Discovery tools report plane capabilities and type schemas
-- Query tools read from NDJSON fixtures and return canonical objects
+- Discovery tools report domain capabilities and type schemas
+- Query tools read from NDJSON fixtures and return normalized records
 - All responses include coverage reports
-- Response envelope matches contract specification
+- Response envelope matches tool contract specification
 - Replay scenarios run deterministically
 
 **Validation**:
@@ -24,27 +24,27 @@
 - 3+ baseline scenarios with complete coverage
 - 3+ degraded variants with simulated gaps
 - Expected claims and hypotheses documented
-- Confidence caps applied when coverage incomplete
-- Test suite validates gap-aware scoring
+- Confidence limits applied when coverage incomplete
+- Test suite validates coverage-aware scoring
 
 **Validation**:
 - All scenarios produce expected outcomes
-- Degraded variants show reduced confidence bounds
+- Degraded variants show reduced confidence limits
 - Gap references link to coverage reports
 
 ## Milestone 3: Live Integration
 
-**Outcome**: One live source adapter (Okta, AWS CloudTrail, or Azure AD) implements plane interface and passes contract tests.
+**Outcome**: One live source integration (Okta, AWS CloudTrail, or Azure AD) implements domain integration interface and passes tool contract tests.
 
 **Capabilities**:
-- Adapter implements PlaneAdapter interface
-- Real API queries return canonical objects
+- Integration implements DomainIntegration interface
+- Real API queries return normalized records
 - Coverage reports reflect actual source limitations
 - Error handling for API failures and rate limits
 - Authentication and authorization implemented
 
 **Validation**:
-- Contract tests pass with live adapter
+- Tool contract tests pass with live integration
 - Scripted scenario with known outcome succeeds
 - Coverage reports accurately reflect source gaps
 
@@ -53,7 +53,7 @@
 **Outcome**: Investigation results persist in DuckDB with tool-call history for reproducibility.
 
 **Capabilities**:
-- Canonical objects stored in typed tables
+- Normalized records stored in typed tables
 - Claims and hypotheses with evidence references
 - Tool-call history captures request/response pairs
 - Coverage reports stored for gap tracking

@@ -2,11 +2,11 @@
 
 ## Done
 
-- Core ontology and identity plane contract defined
-- MCP tool patterns documented (tool spine, guardrails, observability, testing)
-- Canonical output specification written
+- Core ontology and identity domain contract defined
+- MCP tool patterns documented (tool contracts, guardrails, observability, testing)
+- Normalized output specification written
 - Replay dataset contract established
-- Source adapter interface designed
+- Integration interface designed
 - Architecture decisions recorded
 
 ## Doing
@@ -23,9 +23,9 @@ Target: Stub MCP server that reads replay fixtures and returns deterministic res
 Next actions:
 - Create src/ directory structure
 - Implement response envelope types
-- Implement ReplayIdentityPlane adapter
+- Implement ReplayIdentityIntegration
 - Register MCP tools
-- Write contract compliance tests
+- Write tool contract compliance tests
 
 ## Blocked
 

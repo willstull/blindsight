@@ -27,9 +27,9 @@ Use DuckDB as the embedded analytical database for case records. Each investigat
 
 Store:
 - Tool-call history (request/response pairs with timestamps)
-- Pointers to raw sources (URLs, query IDs, event IDs)
+- Source references pointing to raw sources (URLs, query IDs, event IDs)
 - Selected evidence artifacts (exports, snapshots, small log slices)
-- Canonical objects (entities, events, relationships) in typed tables
+- Normalized records (entities, events, relationships) in typed tables
 - Claims and hypotheses with references to supporting evidence
 - Coverage reports for gap tracking
 

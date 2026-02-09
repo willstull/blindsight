@@ -32,10 +32,10 @@ async def create_mcp_server(logger: Logger, config: Config) -> FastMCP:
     This is the server factory pattern - keeps main() clean.
     """
     logger = create_logger_with_context(logger, "identity_mcp")
-    logger.info("Identity plane MCP server starting")
+    logger.info("Identity domain MCP server starting")
 
     # Create server instance
-    server = FastMCP("blindsight-identity-plane")
+    server = FastMCP("blindsight-identity-mcp")
 
     # Create any shared dependencies (connection factories, config, etc.)
     scenario_path = Path(config.replay_scenarios_dir)
@@ -43,9 +43,9 @@ async def create_mcp_server(logger: Logger, config: Config) -> FastMCP:
     # Register tools with dependencies
     register_search_events_tool(server, logger, config, scenario_path)
     register_get_entity_tool(server, logger, config, scenario_path)
-    register_describe_plane_tool(server, logger, config, scenario_path)
+    register_describe_domain_tool(server, logger, config, scenario_path)
 
-    logger.info("Identity plane initialized", tools=["search_events", "get_entity", "describe_plane"])
+    logger.info("Identity domain initialized", tools=["search_events", "get_entity", "describe_domain"])
     return server
 ```
 
@@ -109,7 +109,7 @@ from pathlib import Path
 
 from types.core import ActionEvent, CoverageReport
 from types.envelope import SearchEventsResponse
-from services.identity.replay_adapter import load_events
+from services.identity.replay_integration import load_events
 from services.identity.validator import validate_time_range
 from services.identity.coverage import generate_coverage_report
 from utils.time import parse_iso8601
@@ -149,7 +149,7 @@ async def search_events_handler(
         logger.warning("Validation failed", error_code=issue.code)
         return SearchEventsResponse(
             status="error",
-            plane="identity",
+            domain="identity",
             error=issue,
             request_id=request_id
         )
@@ -160,7 +160,7 @@ async def search_events_handler(
         logger.error("Failed to load events")
         return SearchEventsResponse(
             status="error",
-            plane="identity",
+            domain="identity",
             error=PipelineError(
                 code="load_failed",
                 message="Failed to load event fixtures",
@@ -179,7 +179,7 @@ async def search_events_handler(
         logger.error("Search failed")
         return SearchEventsResponse(
             status="error",
-            plane="identity",
+            domain="identity",
             error=PipelineError(code="search_failed", message="Search operation failed"),
             request_id=request_id
         )
@@ -227,7 +227,7 @@ from types.errors import PipelineError
 class SearchEventsResponse:
     """Response from search_events tool"""
     status: str  # "success", "partial", "error"
-    plane: str
+    domain: str
     request_id: str
     coverage_report: Optional[CoverageReport] = None
     items: Optional[List[ActionEvent]] = None
@@ -258,7 +258,7 @@ Key points:
 Services return `Result[T, Exception]` instead of raising exceptions.
 
 ```python
-# services/identity/replay_adapter.py
+# services/identity/replay_integration.py
 from result import Result, Ok, Err
 from pathlib import Path
 from logging import Logger
@@ -273,7 +273,7 @@ def load_events(
 ) -> Result[List[ActionEvent], Exception]:
     """Load events from NDJSON fixture."""
     try:
-        events_file = scenario_path / "planes" / "identity" / "events.ndjson"
+        events_file = scenario_path / "domains" / "identity" / "events.ndjson"
 
         if not events_file.exists():
             logger.warning(f"Events file not found: {events_file}")

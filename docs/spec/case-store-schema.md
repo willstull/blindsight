@@ -6,7 +6,7 @@ This document defines the database schema for case record persistence.
 
 ### entities
 
-Canonical entity records ingested from evidence planes.
+Normalized entity records ingested from evidence domains.
 
 ```sql
 CREATE TABLE entities (
@@ -29,13 +29,13 @@ CREATE INDEX idx_entities_display_name ON entities(display_name);
 
 ### events
 
-Canonical action events ingested from evidence planes.
+Normalized action events ingested from evidence domains.
 
 ```sql
 CREATE TABLE events (
     id VARCHAR PRIMARY KEY,
     tlp VARCHAR NOT NULL,
-    plane VARCHAR NOT NULL,
+    domain VARCHAR NOT NULL,
     ts TIMESTAMP NOT NULL,
     action VARCHAR NOT NULL,
     actor JSON NOT NULL,            -- Actor object {actor_entity_id: str}
@@ -48,7 +48,7 @@ CREATE TABLE events (
 );
 
 CREATE INDEX idx_events_ts ON events(ts);
-CREATE INDEX idx_events_plane_action ON events(plane, action);
+CREATE INDEX idx_events_domain_action ON events(domain, action);
 CREATE INDEX idx_events_actor ON events((json_extract_string(actor, '$.actor_entity_id')));
 ```
 
@@ -60,7 +60,7 @@ Typed edges between entities.
 CREATE TABLE relationships (
     id VARCHAR PRIMARY KEY,
     tlp VARCHAR NOT NULL,
-    plane VARCHAR NOT NULL,
+    domain VARCHAR NOT NULL,
     relationship_type VARCHAR NOT NULL,
     from_entity_id VARCHAR NOT NULL,
     to_entity_id VARCHAR NOT NULL,
@@ -85,7 +85,7 @@ Machine-readable visibility and gap tracking.
 CREATE TABLE coverage_reports (
     id VARCHAR PRIMARY KEY,
     tlp VARCHAR NOT NULL,
-    plane VARCHAR NOT NULL,
+    domain VARCHAR NOT NULL,
     time_range_start TIMESTAMP NOT NULL,
     time_range_end TIMESTAMP NOT NULL,
     overall_status VARCHAR NOT NULL,  -- 'complete', 'partial', 'missing', 'unknown'
@@ -97,7 +97,7 @@ CREATE TABLE coverage_reports (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_coverage_plane_time ON coverage_reports(plane, time_range_start, time_range_end);
+CREATE INDEX idx_coverage_domain_time ON coverage_reports(domain, time_range_start, time_range_end);
 ```
 
 ### evidence_items
@@ -108,7 +108,7 @@ Analytic wrapper pointing to raw sources.
 CREATE TABLE evidence_items (
     id VARCHAR PRIMARY KEY,
     tlp VARCHAR NOT NULL,
-    plane VARCHAR NOT NULL,
+    domain VARCHAR NOT NULL,
     summary TEXT NOT NULL,
     raw_refs JSON NOT NULL,           -- Array of Ref objects (provenance)
     collected_at TIMESTAMP NOT NULL,
@@ -118,7 +118,7 @@ CREATE TABLE evidence_items (
     ingested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_evidence_plane ON evidence_items(plane);
+CREATE INDEX idx_evidence_domain ON evidence_items(domain);
 CREATE INDEX idx_evidence_collected ON evidence_items(collected_at);
 ```
 
@@ -177,7 +177,7 @@ CREATE TABLE hypotheses (
     supporting_claim_ids JSON NOT NULL,  -- Array of claim IDs
     contradicting_claim_ids JSON,      -- Array of claim IDs
     gaps JSON NOT NULL,                -- Array of coverage_report IDs
-    next_evidence_requests JSON NOT NULL,  -- Array of {plane, tool, params, priority}
+    next_evidence_requests JSON NOT NULL,  -- Array of {domain, tool, params, priority}
     status VARCHAR,                    -- 'open', 'ruled_in', 'ruled_out', 'stale'
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -223,7 +223,7 @@ CREATE TABLE tool_calls (
     id VARCHAR PRIMARY KEY,
     case_id VARCHAR NOT NULL,
     request_id VARCHAR NOT NULL,      -- ULID for correlation
-    plane VARCHAR NOT NULL,
+    domain VARCHAR NOT NULL,
     tool_name VARCHAR NOT NULL,
     request_params JSON NOT NULL,
     response_status VARCHAR NOT NULL, -- 'success', 'partial', 'error'

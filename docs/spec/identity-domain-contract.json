@@ -1,6 +1,6 @@
 {
-  "contract_name": "identity_plane_mcp_contract",
-  "plane": "identity",
+  "contract_name": "identity_domain_mcp_contract",
+  "domain": "identity",
   "version": "0.1.0",
   "ontology_version": "0.1",
   "rules": [
@@ -67,11 +67,11 @@
     },
     "action_event": {
       "type": "object",
-      "required": ["id", "tlp", "plane", "ts", "action", "actor", "targets", "outcome", "raw_refs"],
+      "required": ["id", "tlp", "domain", "ts", "action", "actor", "targets", "outcome", "raw_refs"],
       "properties": {
         "id": { "type": "string" },
         "tlp": { "$ref": "#/$defs/tlp_marking" },
-        "plane": { "type": "string" },
+        "domain": { "type": "string" },
         "ts": { "type": "string", "format": "date-time" },
         "action": { "type": "string" },
         "actor": {
@@ -104,11 +104,11 @@
     },
     "relationship": {
       "type": "object",
-      "required": ["id", "tlp", "plane", "relationship_type", "from_entity_id", "to_entity_id"],
+      "required": ["id", "tlp", "domain", "relationship_type", "from_entity_id", "to_entity_id"],
       "properties": {
         "id": { "type": "string" },
         "tlp": { "$ref": "#/$defs/tlp_marking" },
-        "plane": { "type": "string" },
+        "domain": { "type": "string" },
         "relationship_type": { "type": "string" },
         "from_entity_id": { "type": "string" },
         "to_entity_id": { "type": "string" },
@@ -120,11 +120,11 @@
     },
     "coverage_report": {
       "type": "object",
-      "required": ["id", "tlp", "plane", "time_range", "overall_status", "sources"],
+      "required": ["id", "tlp", "domain", "time_range", "overall_status", "sources"],
       "properties": {
         "id": { "type": "string" },
         "tlp": { "$ref": "#/$defs/tlp_marking" },
-        "plane": { "type": "string" },
+        "domain": { "type": "string" },
         "time_range": { "$ref": "#/$defs/time_range" },
         "overall_status": { "type": "string", "enum": ["complete", "partial", "missing", "unknown"] },
         "sources": {
@@ -148,9 +148,9 @@
     },
     "response_envelope": {
       "type": "object",
-      "required": ["plane", "coverage_report", "entities", "events", "relationships"],
+      "required": ["domain", "coverage_report", "entities", "events", "relationships"],
       "properties": {
-        "plane": { "type": "string", "const": "identity" },
+        "domain": { "type": "string", "const": "identity" },
         "coverage_report": { "$ref": "#/$defs/coverage_report" },
         "entities": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
         "events": { "type": "array", "items": { "$ref": "#/$defs/action_event" } },
@@ -162,14 +162,14 @@
   },
   "tools": [
     {
-      "name": "describe_plane",
-      "description": "Return identity plane capabilities and a coverage_report for 'now' (may be unknown).",
+      "name": "describe_domain",
+      "description": "Return identity domain capabilities and a coverage_report for 'now' (may be unknown).",
       "request_schema": { "type": "object", "properties": {}, "additionalProperties": false },
       "response_schema": {
         "type": "object",
-        "required": ["plane", "version", "coverage_report", "capabilities"],
+        "required": ["domain", "version", "coverage_report", "capabilities"],
         "properties": {
-          "plane": { "type": "string", "const": "identity" },
+          "domain": { "type": "string", "const": "identity" },
           "version": { "type": "string" },
           "coverage_report": { "$ref": "#/$defs/coverage_report" },
           "capabilities": {
@@ -188,12 +188,12 @@
       },
       "example_request": {},
       "example_response": {
-        "plane": "identity",
+        "domain": "identity",
         "version": "0.1.0",
         "coverage_report": {
           "id": "01HZYYCRNOW",
           "tlp": "GREEN",
-          "plane": "identity",
+          "domain": "identity",
           "time_range": { "start": "2026-01-05T00:00:00Z", "end": "2026-01-05T00:00:00Z" },
           "overall_status": "unknown",
           "sources": [{ "source_name": "identity_provider", "status": "unknown" }]
@@ -212,9 +212,9 @@
       "request_schema": { "type": "object", "properties": {}, "additionalProperties": false },
       "response_schema": {
         "type": "object",
-        "required": ["plane", "coverage_report", "types"],
+        "required": ["domain", "coverage_report", "types"],
         "properties": {
-          "plane": { "type": "string", "const": "identity" },
+          "domain": { "type": "string", "const": "identity" },
           "coverage_report": { "$ref": "#/$defs/coverage_report" },
           "types": {
             "type": "object",

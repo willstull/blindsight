@@ -13,12 +13,12 @@ The system must demonstrate correct behavior with both complete and degraded dat
 ## Decision
 
 Use static replay datasets stored as NDJSON files with known investigation outcomes. Each scenario includes:
-- Entities, events, and relationships in canonical format
+- Entities, events, and relationships in normalized format
 - Coverage metadata indicating source availability
-- Expected claims and hypotheses with confidence bounds
+- Expected claims and hypotheses with confidence limits
 - Degraded variants with simulated gaps (missing sources, fields, retention windows)
 
-All MCP adapter implementations must support a replay mode that reads from these fixtures before implementing live integrations.
+All MCP integration implementations must support a replay mode that reads from these fixtures before implementing live integrations.
 
 ## Rationale
 
@@ -33,7 +33,7 @@ All MCP adapter implementations must support a replay mode that reads from these
 
 Positive:
 - Can develop and test without live telemetry sources
-- Systematic validation of gap-aware confidence scoring
+- Systematic validation of coverage-aware confidence scoring
 - Regression testing via output comparison
 - Scenarios document expected system behavior
 

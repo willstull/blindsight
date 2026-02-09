@@ -71,8 +71,8 @@ If pursuing live integration, evaluate candidates on:
 
 **Integration Effort:** 3-5 days
 - Day 1: Account setup, API key generation
-- Day 2: Implement LiveOktaPlane adapter
-- Day 3: Map Okta events to canonical ActionEvent
+- Day 2: Implement LiveOktaIntegration
+- Day 3: Map Okta events to normalized ActionEvent
 - Day 4: Test with scripted scenarios
 - Day 5: Coverage report generation for Okta limitations
 
@@ -99,7 +99,7 @@ All scriptable via API.
 
 **Cons:**
 - Requires AWS account (may have costs beyond free tier)
-- Events span identity + resource planes (complex)
+- Events span identity + resource domains (complex)
 - S3 storage required for historical queries
 - IAM permissions setup can be complex
 - Event delivery latency (5-15 minutes)
@@ -144,7 +144,7 @@ All scriptable via boto3, but requires AWS resources.
 **Integration Effort:** 6-8 days
 - Day 1-2: Microsoft 365 Developer account approval
 - Day 3: App registration, permission grants
-- Day 4-5: Implement LiveAzureADPlane adapter
+- Day 4-5: Implement LiveAzureADIntegration
 - Day 6: Event normalization (Azure AD schema complex)
 - Day 7-8: Test scenarios and debug
 
@@ -175,11 +175,11 @@ Scriptable, but Graph API complexity adds friction.
 **If pursuing live integration**: Okta
 
 **Rationale:**
-- Fastest path to working adapter (3-5 days)
+- Fastest path to working integration (3-5 days)
 - Free developer account, no approval wait
 - Clean API with Python SDK
 - Good test scenario scriptability
-- Stays within identity plane (simplifies scope)
+- Stays within identity domain (simplifies scope)
 
 **If NOT pursuing live integration**: Continue with replay datasets only
 
@@ -211,8 +211,8 @@ But does NOT add:
 
 ## Success Criteria for Live Integration (if pursued)
 
-1. LiveOktaPlane implements PlaneAdapter interface
-2. Passes contract validation tests (same tests as replay adapter)
+1. LiveOktaIntegration implements DomainIntegration interface
+2. Passes tool contract validation tests (same tests as replay integration)
 3. One scripted scenario with known outcome succeeds
 4. Coverage report accurately reflects Okta API limitations
 5. Error handling for API failures (rate limits, network errors)

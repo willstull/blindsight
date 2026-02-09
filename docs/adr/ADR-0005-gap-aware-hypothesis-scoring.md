@@ -19,14 +19,14 @@ Separate likelihood scoring from confidence bounds using two independent metrics
 - Reflects strength of available evidence
 - Calculated from observable data
 
-**Confidence Cap** (0.0 to 1.0): Given coverage gaps, what is the maximum justified confidence?
+**Confidence Limit** (0.0 to 1.0): Given coverage gaps, what is the maximum justified confidence?
 - Based on coverage reports from queries
 - Reflects data availability and completeness
 - Limits how certain we can be regardless of evidence strength
 
-Final confidence = min(likelihood_score, confidence_cap)
+Final confidence = min(likelihood_score, confidence_limit)
 
-Hypotheses include explicit gap references (coverage report IDs) that constrain the confidence cap.
+Hypotheses include explicit gap references (coverage report IDs) that constrain the confidence limit.
 
 ## Rationale
 
@@ -48,5 +48,5 @@ Positive:
 Negative:
 - More complex scoring model than single confidence value
 - Requires coverage report generation for all queries
-- May produce conservative confidence bounds
+- May produce conservative confidence limits
 - Users must understand two-metric system
