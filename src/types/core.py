@@ -3,12 +3,12 @@
 Pure data structures -- no business logic.
 Timestamps are strings (RFC3339) to match NDJSON fixture format directly.
 """
-from dataclasses import dataclass, field
 from typing import Optional
 
+from pydantic import BaseModel, Field
 
-@dataclass
-class Ref:
+
+class Ref(BaseModel):
     ref_type: str
     system: str
     value: str
@@ -16,55 +16,49 @@ class Ref:
     observed_at: Optional[str] = None
 
 
-@dataclass
-class TimeRange:
+class TimeRange(BaseModel):
     start: str  # RFC3339
     end: str
 
 
-@dataclass
-class Actor:
+class Actor(BaseModel):
     actor_entity_id: str
 
 
-@dataclass
-class Target:
+class Target(BaseModel):
     target_entity_id: str
     role: Optional[str] = None
 
 
-@dataclass
-class Entity:
+class Entity(BaseModel):
     id: str
     tlp: str
     entity_type: str
     kind: str
     display_name: str
-    refs: list[Ref] = field(default_factory=list)
+    refs: list[Ref] = Field(default_factory=list)
     attributes: Optional[dict] = None
     first_seen: Optional[str] = None
     last_seen: Optional[str] = None
     confidence: Optional[float] = None
 
 
-@dataclass
-class ActionEvent:
+class ActionEvent(BaseModel):
     id: str
     tlp: str
     domain: str
     ts: str  # RFC3339
     action: str
     actor: Actor
-    targets: list[Target] = field(default_factory=list)
+    targets: list[Target] = Field(default_factory=list)
     outcome: str = "unknown"
-    raw_refs: list[Ref] = field(default_factory=list)
+    raw_refs: list[Ref] = Field(default_factory=list)
     context: Optional[dict] = None
     related_entity_ids: Optional[list[str]] = None
     ingested_at: Optional[str] = None
 
 
-@dataclass
-class Relationship:
+class Relationship(BaseModel):
     id: str
     tlp: str
     domain: str
@@ -76,8 +70,7 @@ class Relationship:
     evidence_refs: Optional[list[Ref]] = None
 
 
-@dataclass
-class SourceStatus:
+class SourceStatus(BaseModel):
     source_name: str
     status: str  # complete | partial | missing | unknown
     available_fields: Optional[list[str]] = None
@@ -86,14 +79,13 @@ class SourceStatus:
     notes: Optional[str] = None
 
 
-@dataclass
-class CoverageReport:
+class CoverageReport(BaseModel):
     id: str
     tlp: str
     domain: str
     time_range: TimeRange
     overall_status: str  # complete | partial | missing | unknown
-    sources: list[SourceStatus] = field(default_factory=list)
+    sources: list[SourceStatus] = Field(default_factory=list)
     missing_fields: Optional[list[str]] = None
     data_latency_seconds: Optional[float] = None
     quality_flags: Optional[list[str]] = None

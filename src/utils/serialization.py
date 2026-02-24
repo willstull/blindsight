@@ -1,6 +1,5 @@
 """Serialization helpers for NDJSON and YAML loading."""
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -8,17 +7,8 @@ import yaml
 
 
 def dataclass_to_dict(obj: Any) -> dict:
-    """Convert a dataclass to dict, recursively stripping None values."""
-    raw = asdict(obj)
-    return _strip_nones(raw)
-
-
-def _strip_nones(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        return {k: _strip_nones(v) for k, v in obj.items() if v is not None}
-    if isinstance(obj, list):
-        return [_strip_nones(item) for item in obj]
-    return obj
+    """Convert a Pydantic model to dict, excluding None values."""
+    return obj.model_dump(exclude_none=True)
 
 
 def load_ndjson(filepath: Path) -> list[dict]:

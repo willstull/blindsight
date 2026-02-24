@@ -1,10 +1,10 @@
 """Structured error types."""
-from dataclasses import dataclass
 from typing import Optional
 
+from pydantic import BaseModel
 
-@dataclass
-class PipelineError:
+
+class PipelineError(BaseModel):
     code: str
     message: str
     severity: str  # error | warning | info
@@ -12,8 +12,7 @@ class PipelineError:
     retryable: bool = False
 
 
-@dataclass
-class ValidationIssue:
+class ValidationIssue(BaseModel):
     code: str
     message: str
     severity: str

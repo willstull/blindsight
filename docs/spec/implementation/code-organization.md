@@ -100,68 +100,50 @@ Following the coding style defined in the Safeloop article:
 
 ## Type Definitions
 
-Types define data structure only. No methods except constructors or simple validators.
+Types define data structure only. No methods except serialization helpers (e.g. `to_dict()`). All types in `types/` use Pydantic BaseModel for automatic nested parsing (`model_validate()`) and serialization (`model_dump(exclude_none=True)`).
 
 ```python
 # types/core.py
-from dataclasses import dataclass
-from datetime import datetime
-from typing import List, Optional
+from typing import Optional
+from pydantic import BaseModel, Field
 
-@dataclass
-class Entity:
+class Entity(BaseModel):
     id: str
     tlp: str
     entity_type: str
     kind: str
     display_name: str
-    refs: List['Ref']
+    refs: list[Ref] = Field(default_factory=list)
     attributes: Optional[dict] = None
-    first_seen: Optional[datetime] = None
-    last_seen: Optional[datetime] = None
+    first_seen: Optional[str] = None
+    last_seen: Optional[str] = None
     confidence: Optional[float] = None
 
-@dataclass
-class ActionEvent:
+class ActionEvent(BaseModel):
     id: str
     tlp: str
     domain: str
-    ts: datetime
+    ts: str  # RFC3339
     action: str
-    actor: 'Actor'
-    targets: List['Target']
-    outcome: str
-    raw_refs: List['Ref']
+    actor: Actor
+    targets: list[Target] = Field(default_factory=list)
+    outcome: str = "unknown"
+    raw_refs: list[Ref] = Field(default_factory=list)
     context: Optional[dict] = None
-    related_entity_ids: Optional[List[str]] = None
-    ingested_at: Optional[datetime] = None
+    related_entity_ids: Optional[list[str]] = None
+    ingested_at: Optional[str] = None
 
-@dataclass
-class CoverageReport:
+class CoverageReport(BaseModel):
     id: str
     tlp: str
     domain: str
-    time_range: 'TimeRange'
+    time_range: TimeRange
     overall_status: str
-    sources: List['SourceStatus']
-    missing_fields: Optional[List[str]] = None
+    sources: list[SourceStatus] = Field(default_factory=list)
+    missing_fields: Optional[list[str]] = None
     data_latency_seconds: Optional[float] = None
-    quality_flags: Optional[List[str]] = None
+    quality_flags: Optional[list[str]] = None
     notes: Optional[str] = None
-
-@dataclass
-class Case:
-    id: str
-    tlp: str
-    title: str
-    status: str
-    severity: str
-    created_at: datetime
-    detected_at: Optional[datetime] = None
-    contained_at: Optional[datetime] = None
-    resolved_at: Optional[datetime] = None
-    hypothesis_ids: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
 ```
 
 ## Service Functions: Identity Domain

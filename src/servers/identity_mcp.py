@@ -16,7 +16,6 @@ from src.types.envelope import IntegrationResult, ResponseEnvelope
 from src.types.errors import PipelineError
 from src.types.integration import DomainIntegration
 from src.utils.ulid import generate_ulid
-from src.utils.serialization import dataclass_to_dict
 
 
 def _build_envelope(

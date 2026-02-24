@@ -8,8 +8,7 @@ Extracted from the NL2SQL MCP server at `~/dev/business-intelligence/bi-api`.
 - **Pydantic-AI**: LLM agent framework with structured outputs
 - **DuckDB**: Embedded SQL database for case store
 - **result**: Result type library (`from result import Result, Ok, Err`)
-- **Pydantic**: For JSON data received from outside (API requests, LLM outputs)
-- **dataclasses**: For everything else (internal types, database models, response objects)
+- **Pydantic BaseModel**: For all types in the `types/` layer (core domain types, error types, response envelopes). Provides automatic nested parsing via `model_validate()` and clean serialization via `model_dump(exclude_none=True)`
 
 ## Server Setup Pattern
 
@@ -213,45 +212,38 @@ Handler responsibilities:
 
 ## Response Objects Pattern
 
-Response objects use dataclasses with a `.dict()` method for JSON serialization.
+Response objects use Pydantic BaseModel with `model_dump(exclude_none=True)` for JSON serialization.
 
 ```python
 # types/envelope.py
-from dataclasses import dataclass, asdict
 from typing import Optional, List
+from pydantic import BaseModel, Field
 
 from types.core import ActionEvent, CoverageReport
 from types.errors import PipelineError
 
-@dataclass
-class SearchEventsResponse:
-    """Response from search_events tool"""
+class ResponseEnvelope(BaseModel):
+    """Response from MCP tool handlers"""
     status: str  # "success", "partial", "error"
     domain: str
     request_id: str
     coverage_report: Optional[CoverageReport] = None
-    items: Optional[List[ActionEvent]] = None
+    entities: list[Entity] = Field(default_factory=list)
+    events: list[ActionEvent] = Field(default_factory=list)
     error: Optional[PipelineError] = None
-    limitations: Optional[List[str]] = None
+    limitations: list[str] = Field(default_factory=list)
     next_page_token: Optional[str] = None
 
-    def dict(self) -> dict:
+    def to_dict(self) -> dict:
         """Convert to dict for MCP response, omitting None values"""
-        result = {}
-        for key, value in asdict(self).items():
-            if value is not None:
-                result[key] = value
-        return result
+        return self.model_dump(exclude_none=True)
 ```
 
 Key points:
-- Use `@dataclass` for internal response objects
-- Include `.dict()` method that omits None values
-- Return from handler, convert to dict in tool registration
-
-**When to use Pydantic vs dataclass:**
-- **Pydantic**: JSON data from outside (MCP tool inputs, LLM structured outputs)
-- **dataclasses**: Everything internal (entities, events, responses, pipeline results)
+- All types in `types/` use `BaseModel`
+- `model_dump(exclude_none=True)` replaces hand-rolled None stripping
+- `model_validate(dict)` replaces manual `_parse_*()` constructors for nested objects
+- `Field(default_factory=list)` for mutable defaults
 
 ## Service Functions with Result Types
 
@@ -388,14 +380,10 @@ Rules:
 ```
 
 Key points:
-- **Pydantic `BaseModel`** for LLM structured output (data coming from outside)
-- **dataclass** for agent dependencies (internal data)
+- **Pydantic `BaseModel`** for LLM structured output
+- **dataclass** is acceptable for lightweight internal-only structs (e.g. agent dependencies) that never need serialization or validation
 - Agent returns `.data` attribute with typed output
 - Wrap in Result type for consistency
-
-**Rule of thumb:**
-- Data from outside (LLM, API, JSON) → Pydantic
-- Data inside your code (entities, events, dependencies) → dataclass
 
 ## DuckDB Query Pattern
 
@@ -481,11 +469,10 @@ Structured errors with codes and severity.
 
 ```python
 # types/errors.py
-from dataclasses import dataclass
 from typing import Optional
+from pydantic import BaseModel
 
-@dataclass
-class PipelineError:
+class PipelineError(BaseModel):
     """Structured error with retry metadata"""
     code: str  # e.g. "time_range_required", "load_failed"
     message: str
@@ -493,8 +480,7 @@ class PipelineError:
     context: Optional[dict] = None
     retryable: bool = False
 
-@dataclass
-class ValidationIssue:
+class ValidationIssue(BaseModel):
     """Validation-specific error"""
     code: str
     message: str
@@ -505,13 +491,11 @@ class ValidationIssue:
 ## Key Differences from Generic Patterns
 
 1. **FastMCP, not generic MCP**: Use `from mcp.server import FastMCP` and specific registration patterns
-2. **Pydantic vs dataclass split**:
-   - Pydantic: JSON from outside (LLM outputs, API requests)
-   - dataclass: Internal types (entities, events, responses, dependencies)
+2. **Pydantic BaseModel for all types**: Domain types, error types, and response envelopes in `types/` use BaseModel. Use `model_validate()` for parsing nested dicts, `model_dump(exclude_none=True)` for serialization
 3. **Handler + service separation**: Handlers orchestrate, services do work
 4. **Result types everywhere**: No exceptions as control flow
 5. **Logger enrichment at boundaries**: Pass explicit logger with context
-6. **Response objects with .dict()**: Clean JSON serialization
+6. **Response objects with `.to_dict()`**: Delegates to `model_dump(exclude_none=True)`
 7. **DuckDB for case store**: Simple embedded SQL, no connection pooling needed
 
 ## What NOT to Import from NL2SQL
@@ -529,6 +513,6 @@ class ValidationIssue:
 - Pydantic-AI agent pattern for structured output
 - Result types throughout
 - Logger enrichment
-- Response objects with .dict()
+- Response objects with .to_dict() / model_dump()
 - DuckDB query patterns (basic SELECT, JSON extraction)
 - ULID for request correlation

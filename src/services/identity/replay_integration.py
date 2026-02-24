@@ -14,13 +14,9 @@ from src.services.identity.coverage import (
 )
 from src.types.core import (
     ActionEvent,
-    Actor,
     CoverageReport,
     Entity,
-    Ref,
     Relationship,
-    SourceStatus,
-    Target,
     TimeRange,
 )
 from src.types.envelope import IntegrationResult
@@ -44,9 +40,9 @@ class ReplayIdentityIntegration(DomainIntegration):
         self._coverage_data = load_yaml(self._domain_dir / "coverage.yaml")
 
         # Parse into typed objects
-        self._entities = [_parse_entity(r) for r in raw_entities]
-        self._events = [_parse_event(r) for r in raw_events]
-        self._relationships = [_parse_relationship(r) for r in raw_rels]
+        self._entities = [Entity.model_validate(r) for r in raw_entities]
+        self._events = [ActionEvent.model_validate(r) for r in raw_events]
+        self._relationships = [Relationship.model_validate(r) for r in raw_rels]
 
         # Build indexes
         self._entity_by_id: dict[str, Entity] = {e.id: e for e in self._entities}
@@ -242,71 +238,6 @@ class ReplayIdentityIntegration(DomainIntegration):
             coverage=self._make_coverage(time_range),
             limitations=self._make_limitations(),
         )
-
-
-# -- Parsing helpers --
-
-
-def _parse_ref(d: dict) -> Ref:
-    return Ref(
-        ref_type=d["ref_type"],
-        system=d["system"],
-        value=d["value"],
-        url=d.get("url"),
-        observed_at=d.get("observed_at"),
-    )
-
-
-def _parse_entity(d: dict) -> Entity:
-    return Entity(
-        id=d["id"],
-        tlp=d["tlp"],
-        entity_type=d["entity_type"],
-        kind=d["kind"],
-        display_name=d["display_name"],
-        refs=[_parse_ref(r) for r in d.get("refs", [])],
-        attributes=d.get("attributes"),
-        first_seen=d.get("first_seen"),
-        last_seen=d.get("last_seen"),
-        confidence=d.get("confidence"),
-    )
-
-
-def _parse_event(d: dict) -> ActionEvent:
-    return ActionEvent(
-        id=d["id"],
-        tlp=d["tlp"],
-        domain=d["domain"],
-        ts=d["ts"],
-        action=d["action"],
-        actor=Actor(actor_entity_id=d["actor"]["actor_entity_id"]),
-        targets=[
-            Target(
-                target_entity_id=t["target_entity_id"],
-                role=t.get("role"),
-            )
-            for t in d.get("targets", [])
-        ],
-        outcome=d.get("outcome", "unknown"),
-        raw_refs=[_parse_ref(r) for r in d.get("raw_refs", [])],
-        context=d.get("context"),
-        related_entity_ids=d.get("related_entity_ids"),
-        ingested_at=d.get("ingested_at"),
-    )
-
-
-def _parse_relationship(d: dict) -> Relationship:
-    return Relationship(
-        id=d["id"],
-        tlp=d["tlp"],
-        domain=d["domain"],
-        relationship_type=d["relationship_type"],
-        from_entity_id=d["from_entity_id"],
-        to_entity_id=d["to_entity_id"],
-        first_seen=d.get("first_seen"),
-        last_seen=d.get("last_seen"),
-        evidence_refs=[_parse_ref(r) for r in d.get("evidence_refs", [])] if d.get("evidence_refs") else None,
-    )
 
 
 def _filter_by_actions(events: list[ActionEvent], actions: list[str]) -> list[ActionEvent]:
