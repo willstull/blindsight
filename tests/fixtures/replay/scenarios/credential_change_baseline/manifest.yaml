@@ -1,0 +1,15 @@
+scenario_name: credential_change_baseline
+version: '1.0'
+description: 'Baseline scenario: credential change with complete telemetry'
+investigation_question: Did principal alice@example.com change credentials in January
+  2026?
+time_range:
+  start: '2026-01-01T00:00:00Z'
+  end: '2026-01-31T23:59:59Z'
+domains:
+- identity
+variant: baseline
+tags:
+- credential_change
+- identity_domain
+- complete_coverage

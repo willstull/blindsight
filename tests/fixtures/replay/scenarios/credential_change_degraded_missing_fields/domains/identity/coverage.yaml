@@ -1,0 +1,12 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: partial
+  missing_fields:
+  - source_ip
+  - user_agent
+missing_fields:
+- source_ip
+- user_agent
+notes: Okta logs available but missing network context fields

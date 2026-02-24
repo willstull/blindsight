@@ -1,0 +1,16 @@
+scenario_name: credential_change_degraded_missing_mfa
+version: '1.0'
+description: 'Degraded: MFA provider logs unavailable, only password credential events
+  visible'
+investigation_question: Did principal alice@example.com change credentials in January
+  2026?
+time_range:
+  start: '2026-01-01T00:00:00Z'
+  end: '2026-01-31T23:59:59Z'
+domains:
+- identity
+variant: degraded_missing_mfa
+tags:
+- credential_change
+- identity_domain
+- missing_source

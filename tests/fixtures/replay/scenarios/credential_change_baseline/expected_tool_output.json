@@ -1,0 +1,64 @@
+{
+  "scenario_name": "credential_change_baseline",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-01-01T00:00:00Z",
+        "time_range_end": "2026-01-31T23:59:59Z",
+        "actions": [
+          "credential.reset",
+          "credential.enroll"
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "event_count": 2,
+        "event_ids": [
+          "evt_051",
+          "evt_052"
+        ],
+        "entity_count": 3,
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_entity",
+      "args": {
+        "entity_id": "principal_alice"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 1,
+        "entity_ids": [
+          "principal_alice"
+        ],
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_neighbors",
+      "args": {
+        "entity_id": "principal_alice"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 7,
+        "relationship_count": 7,
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "describe_coverage",
+      "args": {
+        "time_range_start": "2026-01-01T00:00:00Z",
+        "time_range_end": "2026-01-31T23:59:59Z"
+      },
+      "expected": {
+        "status": "success",
+        "coverage_overall_status": "complete",
+        "source_count": 1
+      }
+    }
+  ]
+}

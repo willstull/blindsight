@@ -1,0 +1,9 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: complete
+- source_name: mfa_provider
+  status: missing
+  notes: MFA provider logs unavailable
+notes: MFA provider logs unavailable; only password credential events visible

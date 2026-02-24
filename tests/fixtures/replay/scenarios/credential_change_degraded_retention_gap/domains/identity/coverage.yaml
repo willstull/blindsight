@@ -1,0 +1,12 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: auth_stream
+  status: partial
+  quality_flags:
+  - retention_gap
+  notes: Auth event logs unavailable 2026-01-10 to 2026-01-20
+- source_name: credential_audit_stream
+  status: complete
+  notes: Credential change events from dedicated audit log
+notes: Auth event stream has 10-day retention gap; credential audit stream is complete

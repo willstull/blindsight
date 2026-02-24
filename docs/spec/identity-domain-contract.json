@@ -148,14 +148,63 @@
     },
     "response_envelope": {
       "type": "object",
-      "required": ["domain", "coverage_report", "entities", "events", "relationships"],
+      "required": ["status", "domain", "request_id", "coverage_report", "entities", "events", "relationships"],
       "properties": {
+        "status": { "type": "string", "enum": ["success", "partial", "error"] },
         "domain": { "type": "string", "const": "identity" },
+        "request_id": { "type": "string" },
         "coverage_report": { "$ref": "#/$defs/coverage_report" },
         "entities": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
         "events": { "type": "array", "items": { "$ref": "#/$defs/action_event" } },
         "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "severity": { "type": "string", "enum": ["error", "warning", "info"] }
+          }
+        },
+        "limitations": { "type": "array", "items": { "type": "string" } },
         "next_page_token": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "describe_domain_response": {
+      "type": "object",
+      "required": ["domain", "version", "capabilities"],
+      "properties": {
+        "domain": { "type": "string", "const": "identity" },
+        "version": { "type": "string" },
+        "capabilities": {
+          "type": "object",
+          "required": ["supported_entity_types", "supported_actions_prefixes", "supports_neighbors", "supports_coverage"],
+          "properties": {
+            "supported_entity_types": { "type": "array", "items": { "type": "string" } },
+            "supported_actions_prefixes": { "type": "array", "items": { "type": "string" } },
+            "supports_neighbors": { "type": "boolean" },
+            "supports_coverage": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "describe_types_response": {
+      "type": "object",
+      "required": ["domain", "types"],
+      "properties": {
+        "domain": { "type": "string", "const": "identity" },
+        "types": {
+          "type": "object",
+          "required": ["entity_type_enum", "relationship_types", "context_fields"],
+          "properties": {
+            "entity_type_enum": { "type": "array", "items": { "type": "string" } },
+            "relationship_types": { "type": "array", "items": { "type": "string" } },
+            "context_fields": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     }
@@ -165,42 +214,14 @@
       "name": "describe_domain",
       "description": "Return identity domain capabilities and a coverage_report for 'now' (may be unknown).",
       "request_schema": { "type": "object", "properties": {}, "additionalProperties": false },
-      "response_schema": {
-        "type": "object",
-        "required": ["domain", "version", "coverage_report", "capabilities"],
-        "properties": {
-          "domain": { "type": "string", "const": "identity" },
-          "version": { "type": "string" },
-          "coverage_report": { "$ref": "#/$defs/coverage_report" },
-          "capabilities": {
-            "type": "object",
-            "required": ["supported_entity_types", "supported_actions_prefixes", "supports_neighbors", "supports_coverage"],
-            "properties": {
-              "supported_entity_types": { "type": "array", "items": { "type": "string" } },
-              "supported_actions_prefixes": { "type": "array", "items": { "type": "string" } },
-              "supports_neighbors": { "type": "boolean" },
-              "supports_coverage": { "type": "boolean" }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
+      "response_schema": { "$ref": "#/$defs/describe_domain_response" },
       "example_request": {},
       "example_response": {
         "domain": "identity",
         "version": "0.1.0",
-        "coverage_report": {
-          "id": "01HZYYCRNOW",
-          "tlp": "GREEN",
-          "domain": "identity",
-          "time_range": { "start": "2026-01-05T00:00:00Z", "end": "2026-01-05T00:00:00Z" },
-          "overall_status": "unknown",
-          "sources": [{ "source_name": "identity_provider", "status": "unknown" }]
-        },
         "capabilities": {
-          "supported_entity_types": ["principal", "credential", "session", "tenant", "network_endpoint", "device"],
-          "supported_actions_prefixes": ["auth.", "credential.", "privilege."],
+          "supported_entity_types": ["principal", "credential", "session", "device"],
+          "supported_actions_prefixes": ["auth.", "credential."],
           "supports_neighbors": true,
           "supports_coverage": true
         }
@@ -210,25 +231,7 @@
       "name": "describe_types",
       "description": "Return minimal schema discovery for filtering/searching (entity types, relationship types, context fields).",
       "request_schema": { "type": "object", "properties": {}, "additionalProperties": false },
-      "response_schema": {
-        "type": "object",
-        "required": ["domain", "coverage_report", "types"],
-        "properties": {
-          "domain": { "type": "string", "const": "identity" },
-          "coverage_report": { "$ref": "#/$defs/coverage_report" },
-          "types": {
-            "type": "object",
-            "required": ["entity_type_enum", "relationship_types", "context_fields"],
-            "properties": {
-              "entity_type_enum": { "type": "array", "items": { "type": "string" } },
-              "relationship_types": { "type": "array", "items": { "type": "string" } },
-              "context_fields": { "type": "array", "items": { "type": "string" } }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      }
+      "response_schema": { "$ref": "#/$defs/describe_types_response" }
     },
     {
       "name": "get_entity",

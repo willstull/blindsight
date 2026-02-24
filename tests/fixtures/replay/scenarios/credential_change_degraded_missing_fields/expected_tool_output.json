@@ -1,0 +1,25 @@
+{
+  "scenario_name": "credential_change_degraded_missing_fields",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-01-01T00:00:00Z",
+        "time_range_end": "2026-01-31T23:59:59Z",
+        "actions": [
+          "credential.reset",
+          "credential.enroll"
+        ]
+      },
+      "expected": {
+        "status": "partial",
+        "event_count": 2,
+        "event_ids": [
+          "evt_051",
+          "evt_052"
+        ],
+        "coverage_overall_status": "partial"
+      }
+    }
+  ]
+}

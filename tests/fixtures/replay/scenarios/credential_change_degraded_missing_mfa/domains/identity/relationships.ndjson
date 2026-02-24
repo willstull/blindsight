@@ -1,0 +1,7 @@
+{"id":"rel_01","tlp":"GREEN","domain":"identity","relationship_type":"authenticated_as","from_entity_id":"session_01","to_entity_id":"principal_alice","first_seen":"2026-01-06T09:00:00Z"}
+{"id":"rel_02","tlp":"GREEN","domain":"identity","relationship_type":"authenticated_as","from_entity_id":"session_02","to_entity_id":"principal_alice","first_seen":"2026-01-12T09:00:00Z"}
+{"id":"rel_03","tlp":"GREEN","domain":"identity","relationship_type":"authenticated_as","from_entity_id":"session_03","to_entity_id":"principal_alice","first_seen":"2026-01-18T09:00:00Z"}
+{"id":"rel_04","tlp":"GREEN","domain":"identity","relationship_type":"authenticated_as","from_entity_id":"session_04","to_entity_id":"principal_alice","first_seen":"2026-01-24T09:00:00Z"}
+{"id":"rel_05","tlp":"GREEN","domain":"identity","relationship_type":"authenticated_as","from_entity_id":"session_05","to_entity_id":"principal_alice","first_seen":"2026-01-30T09:00:00Z"}
+{"id":"rel_06","tlp":"GREEN","domain":"identity","relationship_type":"has_credential","from_entity_id":"principal_alice","to_entity_id":"credential_alice_pw","first_seen":"2026-01-01T00:00:00Z"}
+{"id":"rel_08","tlp":"GREEN","domain":"identity","relationship_type":"uses_device","from_entity_id":"session_01","to_entity_id":"device_01","first_seen":"2026-01-06T09:00:00Z"}

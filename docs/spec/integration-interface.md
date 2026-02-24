@@ -70,7 +70,7 @@ All domain integrations (identity, network, resource, etc.) implement this inter
 ```python
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class TimeRange:
@@ -78,18 +78,26 @@ class TimeRange:
     end: str
 
 @dataclass
-class IntegrationResponse:
-    """Standard response from all integration methods"""
-    status: str                     # "success" | "partial" | "error"
-    items: List[Dict[str, Any]]     # Entities, events, or relationships
-    coverage_report: Dict[str, Any] # Coverage metadata (REQUIRED)
-    error: Optional[Dict[str, Any]] = None
-    limitations: List[str] = None
-    next_page_token: Optional[str] = None
+class IntegrationResult:
+    """Standard response from evidence methods (get_entity, search_events, etc.)
+
+    Contains typed arrays instead of generic items[]. Status and request_id
+    are NOT set here -- the MCP tool handler constructs ResponseEnvelope
+    from IntegrationResult, adding request_id, status (derived from coverage),
+    and domain.
+    """
+    entities: List[Entity] = field(default_factory=list)
+    events: List[ActionEvent] = field(default_factory=list)
+    relationships: List[Relationship] = field(default_factory=list)
+    coverage: Optional[CoverageReport] = None
+    limitations: List[str] = field(default_factory=list)
 
 class DomainIntegration(ABC):
     """
     Abstract base class for all domain integrations.
+
+    Metadata methods (describe_domain, describe_types) return plain dicts.
+    Evidence methods (all others) return IntegrationResult.
 
     Implementations:
     - ReplayIntegration: Reads from replay datasets
@@ -101,12 +109,11 @@ class DomainIntegration(ABC):
         """
         Return domain capabilities and current coverage status.
 
-        Returns:
+        Returns dict (not IntegrationResult):
             {
                 "domain": str,
                 "version": str,
-                "capabilities": {...},
-                "coverage_report": {...}
+                "capabilities": {...}
             }
         """
         pass
@@ -133,7 +140,7 @@ class DomainIntegration(ABC):
     async def get_entity(
         self,
         entity_id: str
-    ) -> IntegrationResponse:
+    ) -> IntegrationResult:
         """
         Fetch a single entity by normalized ID.
 
@@ -141,7 +148,7 @@ class DomainIntegration(ABC):
             entity_id: Normalized entity ID within case
 
         Returns:
-            IntegrationResponse with items=[Entity] or error
+            IntegrationResult with entities=[Entity] or empty
         """
         pass
 
@@ -153,7 +160,7 @@ class DomainIntegration(ABC):
         kinds: Optional[List[str]] = None,
         limit: int = 100,
         page_token: Optional[str] = None
-    ) -> IntegrationResponse:
+    ) -> IntegrationResult:
         """
         Search entities by free-text query and filters.
 
@@ -165,7 +172,7 @@ class DomainIntegration(ABC):
             page_token: Continuation token from previous page
 
         Returns:
-            IntegrationResponse with items=[Entity, ...]
+            IntegrationResult with entities=[Entity, ...]
         """
         pass
 
@@ -179,7 +186,7 @@ class DomainIntegration(ABC):
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 2000,
         page_token: Optional[str] = None
-    ) -> IntegrationResponse:
+    ) -> IntegrationResult:
         """
         Search normalized events with time bounds and filters.
 
@@ -193,7 +200,7 @@ class DomainIntegration(ABC):
             page_token: Continuation token
 
         Returns:
-            IntegrationResponse with items=[ActionEvent, ...] + entities
+            IntegrationResult with events=[ActionEvent, ...] + entities
         """
         pass
 
@@ -206,7 +213,7 @@ class DomainIntegration(ABC):
         depth: int = 1,
         limit: int = 2000,
         page_token: Optional[str] = None
-    ) -> IntegrationResponse:
+    ) -> IntegrationResult:
         """
         Traverse relationships from an entity.
 
@@ -219,7 +226,7 @@ class DomainIntegration(ABC):
             page_token: Continuation token
 
         Returns:
-            IntegrationResponse with entities=[...], relationships=[...]
+            IntegrationResult with entities=[...], relationships=[...]
         """
         pass
 
@@ -229,7 +236,7 @@ class DomainIntegration(ABC):
         time_range: TimeRange,
         sources: Optional[List[str]] = None,
         scopes: Optional[Dict[str, Any]] = None
-    ) -> IntegrationResponse:
+    ) -> IntegrationResult:
         """
         Return coverage status and gaps for time range.
 
@@ -239,10 +246,21 @@ class DomainIntegration(ABC):
             scopes: Optional scope filters (e.g., principal_entity_id)
 
         Returns:
-            IntegrationResponse with coverage_report as main payload
+            IntegrationResult with empty arrays + populated coverage + limitations
         """
         pass
 ```
+
+### ResponseEnvelope (Wire Format)
+
+`ResponseEnvelope` is the wire format returned by MCP tool handlers. It is NOT produced by integrations. The MCP tool handler constructs it from `IntegrationResult`:
+
+- Generates `request_id` (ULID)
+- Derives `status` from `coverage.overall_status` (complete -> success, partial/missing/unknown -> partial)
+- Sets `domain` field
+- Passes through entities, events, relationships, coverage, limitations
+
+Metadata methods (`describe_domain`, `describe_types`) return plain dicts and are not wrapped in ResponseEnvelope.
 
 ---
 
@@ -301,7 +319,7 @@ class ReplayIdentityIntegration(DomainIntegration):
         time_range: TimeRange,
         actions: Optional[List[str]] = None,
         **kwargs
-    ) -> IntegrationResponse:
+    ) -> IntegrationResult:
         """Search events in replay dataset"""
         from datetime import datetime
 
@@ -326,7 +344,7 @@ class ReplayIdentityIntegration(DomainIntegration):
         status = "success" if self.coverage["overall_status"] == "complete" else "partial"
         coverage_report = self._build_coverage_report(time_range)
 
-        return IntegrationResponse(
+        return IntegrationResult(
             status=status,
             items=filtered,
             coverage_report=coverage_report,
@@ -389,7 +407,7 @@ class LiveIdentityIntegration(DomainIntegration):
         self,
         time_range: TimeRange,
         **kwargs
-    ) -> IntegrationResponse:
+    ) -> IntegrationResult:
         """
         Query live telemetry source.
 
@@ -400,7 +418,7 @@ class LiveIdentityIntegration(DomainIntegration):
         # 2. Execute query (read-only)
         # 3. Normalize results to normalized ActionEvent schema
         # 4. Generate coverage report based on API response metadata
-        # 5. Return IntegrationResponse
+        # 5. Return IntegrationResult
 
         raise NotImplementedError("Live integration: source integration TBD")
 ```
@@ -480,11 +498,11 @@ async def validate_integration_contract(integration: DomainIntegration):
     with pytest.raises(TypeError):
         await integration.search_events()  # Missing required arg
 
-    # 3. search_events returns IntegrationResponse
+    # 3. search_events returns IntegrationResult
     response = await integration.search_events(
         time_range=TimeRange(start="2026-01-01T00:00:00Z", end="2026-01-31T23:59:59Z")
     )
-    assert isinstance(response, IntegrationResponse)
+    assert isinstance(response, IntegrationResult)
     assert response.coverage_report is not None
 
     # 4. Coverage report has required fields
@@ -516,7 +534,7 @@ class MockIdentityIntegration(DomainIntegration):
     """Minimal mock for unit tests"""
 
     async def search_events(self, time_range, **kwargs):
-        return IntegrationResponse(
+        return IntegrationResult(
             status="success",
             items=[],  # Empty result
             coverage_report={"overall_status": "complete", "sources": []}
@@ -596,6 +614,6 @@ def load_domain_integration(domain_name: str, config: Dict) -> DomainIntegration
 - `describe_coverage(time_range)` - Gap analysis
 
 **Standard Response**:
-- `IntegrationResponse` with `status`, `items`, `coverage_report`, `error`, `limitations`
+- `IntegrationResult` with `entities`, `events`, `relationships`, `coverage`, `limitations`
 
 This interface makes **"no live source required"** evaluation feasible while keeping live integration as a clean future addition.

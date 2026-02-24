@@ -2,9 +2,9 @@
 
 > Single source of truth for all MCP tool responses
 
-## Universal Response Envelope
+## Domain MCP Envelope
 
-**Every MCP tool** in every domain MUST return this structure:
+**Every domain MCP tool** returns typed arrays for entities, events, and relationships:
 
 ```python
 {
@@ -12,8 +12,10 @@
     "domain": str,                          # Which domain generated this
     "coverage_report": CoverageReport,      # ALWAYS present (even if "unknown")
 
-    # Data fields (tool-specific, optional based on status)
-    "items": [...],                         # entities | events | relationships
+    # Typed data arrays
+    "entities": [Entity],                   # Normalized entities
+    "events": [ActionEvent],               # Normalized events
+    "relationships": [Relationship],       # Typed edges
 
     # Error tracking (optional, present if status != "success")
     "error": PipelineError,                 # Structured error
@@ -26,6 +28,10 @@
     "request_id": str                       # ULID for tracing
 }
 ```
+
+## Case Store / Export Bundle
+
+The case store and export bundles may use `items[]` internally to represent mixed record types. Domain MCP servers return `entities[]`, `events[]`, `relationships[]` as separate typed arrays.
 
 ### Status Values
 

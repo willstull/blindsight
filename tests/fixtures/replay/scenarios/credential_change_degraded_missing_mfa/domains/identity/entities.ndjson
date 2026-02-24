@@ -1,0 +1,9 @@
+{"id":"principal_alice","tlp":"GREEN","entity_type":"principal","kind":"user","display_name":"alice@example.com","refs":[{"ref_type":"user_id","system":"okta","value":"00u_alice"}],"attributes":{"email":"alice@example.com"},"first_seen":"2026-01-01T08:00:00Z","last_seen":"2026-01-31T17:00:00Z"}
+{"id":"credential_alice_pw","tlp":"GREEN","entity_type":"credential","kind":"password","display_name":"alice password","refs":[{"ref_type":"credential_id","system":"okta","value":"cred_pw_alice"}],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-15T10:30:00Z"}
+{"id":"session_01","tlp":"GREEN","entity_type":"session","kind":"web_session","display_name":"alice session 01","refs":[{"ref_type":"session_id","system":"okta","value":"sess_01"}]}
+{"id":"session_02","tlp":"GREEN","entity_type":"session","kind":"web_session","display_name":"alice session 02","refs":[{"ref_type":"session_id","system":"okta","value":"sess_02"}]}
+{"id":"session_03","tlp":"GREEN","entity_type":"session","kind":"web_session","display_name":"alice session 03","refs":[{"ref_type":"session_id","system":"okta","value":"sess_03"}]}
+{"id":"session_04","tlp":"GREEN","entity_type":"session","kind":"web_session","display_name":"alice session 04","refs":[{"ref_type":"session_id","system":"okta","value":"sess_04"}]}
+{"id":"session_05","tlp":"GREEN","entity_type":"session","kind":"web_session","display_name":"alice session 05","refs":[{"ref_type":"session_id","system":"okta","value":"sess_05"}]}
+{"id":"device_01","tlp":"GREEN","entity_type":"device","kind":"browser","display_name":"Chrome on macOS","refs":[{"ref_type":"device_id","system":"okta","value":"dev_chrome_mac"}]}
+{"id":"device_02","tlp":"GREEN","entity_type":"device","kind":"mobile","display_name":"iPhone 15","refs":[{"ref_type":"device_id","system":"okta","value":"dev_iphone15"}]}

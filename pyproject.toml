@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "blindsight"
+version = "0.1.0"
+description = "Hypothesis-driven incident investigation system"
+authors = ["Will Stull <willstull17@gmail.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+result = "^0.17.0"
+python-ulid = "^2.7.0"
+mcp = "^1.26.0"
+pyyaml = "^6.0"
+structlog = "^24.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.24"
+
+[tool.poetry.group.mcp.dependencies]
+pydantic-ai-slim = {extras = ["anthropic"], version = "^0.2.0"}
+pydantic = "^2.0.0"
+
+[tool.pytest.ini_options]
+pythonpath = [".", "src"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
+markers = [
+    "external_api: tests that call external APIs (exclude in CI)"
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
