@@ -90,3 +90,52 @@ class CoverageReport(BaseModel):
     data_latency_seconds: Optional[float] = None
     quality_flags: Optional[list[str]] = None
     notes: Optional[str] = None
+
+
+class EvidenceItem(BaseModel):
+    id: str
+    tlp: str
+    domain: str
+    summary: str
+    raw_refs: list[Ref] = Field(default_factory=list)
+    collected_at: str  # RFC3339
+    related_entity_ids: Optional[list[str]] = None
+    related_event_ids: Optional[list[str]] = None
+    hash: Optional[str] = None
+
+
+class Claim(BaseModel):
+    id: str
+    tlp: str
+    statement: str
+    polarity: str  # supports | contradicts | neutral
+    confidence: float  # 0-1
+    backed_by_evidence_ids: list[str] = Field(default_factory=list)
+    subject_entity_ids: Optional[list[str]] = None
+    time_range: Optional[TimeRange] = None
+    derived_from_claim_ids: Optional[list[str]] = None
+    assumption_ids: Optional[list[str]] = None
+
+
+class Assumption(BaseModel):
+    id: str
+    tlp: str
+    statement: str
+    strength: str  # solid | caveated | unsupported
+    rationale: str
+    impacts: Optional[list[str]] = None
+
+
+class Hypothesis(BaseModel):
+    id: str
+    tlp: str
+    iq_id: str
+    statement: str
+    likelihood_score: float  # 0-1
+    confidence_limit: float  # 0-1
+    supporting_claim_ids: list[str] = Field(default_factory=list)
+    contradicting_claim_ids: Optional[list[str]] = None
+    gaps: list[str] = Field(default_factory=list)
+    next_evidence_requests: list[dict] = Field(default_factory=list)
+    status: Optional[str] = None  # open | ruled_in | ruled_out | stale
+    updated_at: Optional[str] = None  # RFC3339

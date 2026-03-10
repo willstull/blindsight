@@ -10,7 +10,10 @@ from datetime import datetime, timezone
 import duckdb
 
 from src.services.case.json_helpers import to_json
-from src.types.core import Entity, ActionEvent, Relationship, CoverageReport
+from src.types.core import (
+    Entity, ActionEvent, Relationship, CoverageReport,
+    EvidenceItem, Claim, Assumption, Hypothesis,
+)
 from src.types.result import Result, Ok, Err
 from src.utils.ulid import generate_ulid
 
@@ -168,6 +171,163 @@ def ingest_coverage_report(
         return Ok(coverage.id)
     except Exception as e:
         logger.error("Coverage report ingest failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def ingest_evidence_items(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+    items: list[EvidenceItem],
+) -> Result[int, Exception]:
+    """Upsert evidence items. Returns count ingested."""
+    try:
+        now = _now_ts()
+        for item in items:
+            raw_refs_json = to_json(
+                [r.model_dump(exclude_none=True) for r in item.raw_refs]
+            ) if item.raw_refs else "[]"
+            conn.execute(
+                """INSERT INTO evidence_items
+                   (id, tlp, domain, summary, raw_refs, collected_at,
+                    related_entity_ids, related_event_ids, hash, ingested_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                    tlp=EXCLUDED.tlp, domain=EXCLUDED.domain,
+                    summary=EXCLUDED.summary, raw_refs=EXCLUDED.raw_refs,
+                    collected_at=EXCLUDED.collected_at,
+                    related_entity_ids=EXCLUDED.related_entity_ids,
+                    related_event_ids=EXCLUDED.related_event_ids,
+                    hash=EXCLUDED.hash, ingested_at=EXCLUDED.ingested_at""",
+                [
+                    item.id, item.tlp, item.domain, item.summary,
+                    raw_refs_json, item.collected_at,
+                    to_json(item.related_entity_ids),
+                    to_json(item.related_event_ids),
+                    item.hash, now,
+                ],
+            )
+        logger.info("Ingested evidence items", extra={"count": len(items)})
+        return Ok(len(items))
+    except Exception as e:
+        logger.error("Evidence item ingest failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def ingest_claims(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+    claims: list[Claim],
+) -> Result[int, Exception]:
+    """Upsert claims. Returns count ingested."""
+    try:
+        now = _now_ts()
+        for c in claims:
+            conn.execute(
+                """INSERT INTO claims
+                   (id, tlp, statement, polarity, confidence,
+                    backed_by_evidence_ids, subject_entity_ids,
+                    time_range_start, time_range_end,
+                    derived_from_claim_ids, assumption_ids, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                    tlp=EXCLUDED.tlp, statement=EXCLUDED.statement,
+                    polarity=EXCLUDED.polarity, confidence=EXCLUDED.confidence,
+                    backed_by_evidence_ids=EXCLUDED.backed_by_evidence_ids,
+                    subject_entity_ids=EXCLUDED.subject_entity_ids,
+                    time_range_start=EXCLUDED.time_range_start,
+                    time_range_end=EXCLUDED.time_range_end,
+                    derived_from_claim_ids=EXCLUDED.derived_from_claim_ids,
+                    assumption_ids=EXCLUDED.assumption_ids,
+                    created_at=EXCLUDED.created_at""",
+                [
+                    c.id, c.tlp, c.statement, c.polarity, c.confidence,
+                    to_json(c.backed_by_evidence_ids),
+                    to_json(c.subject_entity_ids),
+                    c.time_range.start if c.time_range else None,
+                    c.time_range.end if c.time_range else None,
+                    to_json(c.derived_from_claim_ids),
+                    to_json(c.assumption_ids), now,
+                ],
+            )
+        logger.info("Ingested claims", extra={"count": len(claims)})
+        return Ok(len(claims))
+    except Exception as e:
+        logger.error("Claim ingest failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def ingest_assumptions(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+    assumptions: list[Assumption],
+) -> Result[int, Exception]:
+    """Upsert assumptions. Returns count ingested."""
+    try:
+        now = _now_ts()
+        for a in assumptions:
+            conn.execute(
+                """INSERT INTO assumptions
+                   (id, tlp, statement, strength, rationale, impacts, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                    tlp=EXCLUDED.tlp, statement=EXCLUDED.statement,
+                    strength=EXCLUDED.strength, rationale=EXCLUDED.rationale,
+                    impacts=EXCLUDED.impacts, created_at=EXCLUDED.created_at""",
+                [
+                    a.id, a.tlp, a.statement, a.strength, a.rationale,
+                    to_json(a.impacts), now,
+                ],
+            )
+        logger.info("Ingested assumptions", extra={"count": len(assumptions)})
+        return Ok(len(assumptions))
+    except Exception as e:
+        logger.error("Assumption ingest failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def ingest_hypotheses(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+    hypotheses: list[Hypothesis],
+) -> Result[int, Exception]:
+    """Upsert hypotheses. Returns count ingested.
+
+    Maps confidence_limit (spec name) to confidence_cap (DuckDB column name).
+    """
+    try:
+        now = _now_ts()
+        for h in hypotheses:
+            conn.execute(
+                """INSERT INTO hypotheses
+                   (id, tlp, iq_id, statement, likelihood_score, confidence_cap,
+                    supporting_claim_ids, contradicting_claim_ids, gaps,
+                    next_evidence_requests, status, updated_at, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                    tlp=EXCLUDED.tlp, iq_id=EXCLUDED.iq_id,
+                    statement=EXCLUDED.statement,
+                    likelihood_score=EXCLUDED.likelihood_score,
+                    confidence_cap=EXCLUDED.confidence_cap,
+                    supporting_claim_ids=EXCLUDED.supporting_claim_ids,
+                    contradicting_claim_ids=EXCLUDED.contradicting_claim_ids,
+                    gaps=EXCLUDED.gaps,
+                    next_evidence_requests=EXCLUDED.next_evidence_requests,
+                    status=EXCLUDED.status, updated_at=EXCLUDED.updated_at,
+                    created_at=EXCLUDED.created_at""",
+                [
+                    h.id, h.tlp, h.iq_id, h.statement,
+                    h.likelihood_score, h.confidence_limit,
+                    to_json(h.supporting_claim_ids),
+                    to_json(h.contradicting_claim_ids),
+                    to_json(h.gaps),
+                    to_json(h.next_evidence_requests),
+                    h.status, h.updated_at or now, now,
+                ],
+            )
+        logger.info("Ingested hypotheses", extra={"count": len(hypotheses)})
+        return Ok(len(hypotheses))
+    except Exception as e:
+        logger.error("Hypothesis ingest failed", extra={"error": str(e)})
         return Err(e)
 
 

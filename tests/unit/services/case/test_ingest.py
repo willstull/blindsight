@@ -7,11 +7,13 @@ from tests.conftest import get_test_logger
 from src.services.case.ingest import (
     ingest_entities, ingest_events, ingest_relationships,
     ingest_coverage_report, ingest_domain_response, record_tool_call,
+    ingest_evidence_items, ingest_claims, ingest_assumptions, ingest_hypotheses,
 )
 from src.services.case.json_helpers import from_json
 from src.types.core import (
     Entity, ActionEvent, Relationship, CoverageReport,
     Actor, Target, Ref, TimeRange, SourceStatus,
+    EvidenceItem, Claim, Assumption, Hypothesis,
 )
 
 
@@ -231,3 +233,208 @@ class TestRecordToolCall:
         assert data["duration_ms"] == 42
         params = from_json(data["request_params"])
         assert params["time_range_start"] == "2026-01-01T00:00:00Z"
+
+
+# -- Analytic object tests --
+
+def _make_evidence_item(id="evi-001"):
+    return EvidenceItem(
+        id=id, tlp="GREEN", domain="identity",
+        summary="Credential reset observed from known IP",
+        raw_refs=[Ref(ref_type="log_id", system="okta", value="log-456")],
+        collected_at="2026-01-15T10:00:00Z",
+        related_entity_ids=["ent-001"],
+        related_event_ids=["evt-001"],
+        hash="sha256:abc123",
+    )
+
+
+def _make_claim(id="clm-001"):
+    return Claim(
+        id=id, tlp="GREEN",
+        statement="All credential changes were self-directed",
+        polarity="supports", confidence=0.9,
+        backed_by_evidence_ids=["evi-001"],
+    )
+
+
+def _make_assumption(id="asm-001"):
+    return Assumption(
+        id=id, tlp="GREEN",
+        statement="Okta logs are complete for the time range",
+        strength="solid",
+        rationale="Coverage report shows complete status for Okta source",
+        impacts=["confidence_limit depends on log completeness"],
+    )
+
+
+def _make_hypothesis(id="hyp-001"):
+    return Hypothesis(
+        id=id, tlp="AMBER", iq_id="IQ-001",
+        statement="Credential changes are legitimate self-service activity",
+        likelihood_score=0.85, confidence_limit=0.95,
+        supporting_claim_ids=["clm-001"],
+        gaps=["cov-001"],
+        next_evidence_requests=[
+            {"domain": "identity", "tool": "search_events",
+             "params": {"actions": ["auth.*"]}, "priority": "low"},
+        ],
+        status="open",
+    )
+
+
+class TestIngestEvidenceItems:
+    def test_ingest_single(self, case_db):
+        logger = get_test_logger()
+        result = ingest_evidence_items(logger, case_db, [_make_evidence_item()])
+        assert result.is_ok()
+        assert result.ok() == 1
+
+        row = case_db.execute("SELECT * FROM evidence_items WHERE id = 'evi-001'").fetchone()
+        assert row is not None
+        cols = [d[0] for d in case_db.description]
+        data = dict(zip(cols, row))
+        assert data["summary"] == "Credential reset observed from known IP"
+        assert data["hash"] == "sha256:abc123"
+        refs = from_json(data["raw_refs"])
+        assert refs[0]["value"] == "log-456"
+        assert from_json(data["related_entity_ids"]) == ["ent-001"]
+
+    def test_upsert(self, case_db):
+        logger = get_test_logger()
+        ingest_evidence_items(logger, case_db, [_make_evidence_item()])
+        updated = _make_evidence_item()
+        updated.summary = "Updated summary"
+        ingest_evidence_items(logger, case_db, [updated])
+
+        row = case_db.execute("SELECT summary FROM evidence_items WHERE id = 'evi-001'").fetchone()
+        assert row[0] == "Updated summary"
+
+
+class TestIngestClaims:
+    def test_ingest_single(self, case_db):
+        logger = get_test_logger()
+        result = ingest_claims(logger, case_db, [_make_claim()])
+        assert result.is_ok()
+        assert result.ok() == 1
+
+        row = case_db.execute("SELECT * FROM claims WHERE id = 'clm-001'").fetchone()
+        cols = [d[0] for d in case_db.description]
+        data = dict(zip(cols, row))
+        assert data["polarity"] == "supports"
+        assert data["confidence"] == 0.9
+        assert from_json(data["backed_by_evidence_ids"]) == ["evi-001"]
+
+    def test_upsert(self, case_db):
+        logger = get_test_logger()
+        ingest_claims(logger, case_db, [_make_claim()])
+        updated = _make_claim()
+        updated.confidence = 0.75
+        ingest_claims(logger, case_db, [updated])
+
+        row = case_db.execute("SELECT confidence FROM claims WHERE id = 'clm-001'").fetchone()
+        assert row[0] == 0.75
+
+    def test_claim_with_all_optional_fields(self, case_db):
+        logger = get_test_logger()
+        claim = Claim(
+            id="clm-full", tlp="AMBER",
+            statement="Derived claim with all fields",
+            polarity="contradicts", confidence=0.6,
+            backed_by_evidence_ids=["evi-001", "evi-002"],
+            subject_entity_ids=["ent-001"],
+            time_range=TimeRange(start="2026-01-01T00:00:00Z", end="2026-01-31T23:59:59Z"),
+            derived_from_claim_ids=["clm-001"],
+            assumption_ids=["asm-001"],
+        )
+        result = ingest_claims(logger, case_db, [claim])
+        assert result.is_ok()
+
+        row = case_db.execute("SELECT * FROM claims WHERE id = 'clm-full'").fetchone()
+        cols = [d[0] for d in case_db.description]
+        data = dict(zip(cols, row))
+        assert from_json(data["subject_entity_ids"]) == ["ent-001"]
+        assert from_json(data["derived_from_claim_ids"]) == ["clm-001"]
+        assert from_json(data["assumption_ids"]) == ["asm-001"]
+        assert data["time_range_start"] is not None
+        assert data["time_range_end"] is not None
+
+
+class TestIngestAssumptions:
+    def test_ingest_single(self, case_db):
+        logger = get_test_logger()
+        result = ingest_assumptions(logger, case_db, [_make_assumption()])
+        assert result.is_ok()
+        assert result.ok() == 1
+
+        row = case_db.execute("SELECT * FROM assumptions WHERE id = 'asm-001'").fetchone()
+        cols = [d[0] for d in case_db.description]
+        data = dict(zip(cols, row))
+        assert data["strength"] == "solid"
+        assert from_json(data["impacts"]) == ["confidence_limit depends on log completeness"]
+
+    def test_upsert(self, case_db):
+        logger = get_test_logger()
+        ingest_assumptions(logger, case_db, [_make_assumption()])
+        updated = _make_assumption()
+        updated.strength = "caveated"
+        ingest_assumptions(logger, case_db, [updated])
+
+        row = case_db.execute("SELECT strength FROM assumptions WHERE id = 'asm-001'").fetchone()
+        assert row[0] == "caveated"
+
+
+class TestIngestHypotheses:
+    def test_ingest_single(self, case_db):
+        logger = get_test_logger()
+        result = ingest_hypotheses(logger, case_db, [_make_hypothesis()])
+        assert result.is_ok()
+        assert result.ok() == 1
+
+        row = case_db.execute("SELECT * FROM hypotheses WHERE id = 'hyp-001'").fetchone()
+        cols = [d[0] for d in case_db.description]
+        data = dict(zip(cols, row))
+        assert data["likelihood_score"] == 0.85
+        # confidence_limit maps to confidence_cap column
+        assert data["confidence_cap"] == 0.95
+        assert data["iq_id"] == "IQ-001"
+        assert data["status"] == "open"
+        assert from_json(data["supporting_claim_ids"]) == ["clm-001"]
+        assert from_json(data["gaps"]) == ["cov-001"]
+
+    def test_upsert(self, case_db):
+        logger = get_test_logger()
+        ingest_hypotheses(logger, case_db, [_make_hypothesis()])
+        updated = _make_hypothesis()
+        updated.likelihood_score = 0.5
+        updated.confidence_limit = 0.6
+        ingest_hypotheses(logger, case_db, [updated])
+
+        row = case_db.execute(
+            "SELECT likelihood_score, confidence_cap FROM hypotheses WHERE id = 'hyp-001'"
+        ).fetchone()
+        assert row[0] == 0.5
+        assert row[1] == 0.6
+
+    def test_next_evidence_requests_json_roundtrip(self, case_db):
+        logger = get_test_logger()
+        requests = [
+            {"domain": "identity", "tool": "search_events",
+             "params": {"actions": ["credential.*"], "time_range_start": "2026-01-01T00:00:00Z"},
+             "priority": "high"},
+            {"domain": "network", "tool": "get_flows",
+             "params": {"src_ip": "10.0.0.1"}, "priority": "medium"},
+        ]
+        hyp = _make_hypothesis()
+        hyp.next_evidence_requests = requests
+        ingest_hypotheses(logger, case_db, [hyp])
+
+        row = case_db.execute(
+            "SELECT next_evidence_requests FROM hypotheses WHERE id = 'hyp-001'"
+        ).fetchone()
+        stored = from_json(row[0])
+        assert len(stored) == 2
+        assert stored[0]["domain"] == "identity"
+        assert stored[0]["params"]["actions"] == ["credential.*"]
+        assert stored[1]["tool"] == "get_flows"
+        assert stored[1]["priority"] == "medium"
