@@ -34,12 +34,9 @@ def baseline_integration(baseline_scenario_path, test_logger):
     )
 
 
-ALL_SCENARIO_NAMES = [
-    "credential_change_baseline",
-    "credential_change_degraded_retention_gap",
-    "credential_change_degraded_missing_fields",
-    "credential_change_degraded_missing_mfa",
-]
+ALL_SCENARIO_NAMES = sorted(
+    p.parent.name for p in FIXTURES_DIR.glob("*/expected_tool_output.json")
+)
 
 
 def scenario_path_for(name: str) -> Path:
