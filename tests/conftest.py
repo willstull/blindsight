@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from src.services.identity.replay_integration import ReplayIdentityIntegration
+from src.services.case.store import open_case_db, create_case
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "replay" / "scenarios"
 
@@ -43,3 +44,23 @@ ALL_SCENARIO_NAMES = [
 
 def scenario_path_for(name: str) -> Path:
     return FIXTURES_DIR / name
+
+
+@pytest.fixture
+def case_db(tmp_path):
+    """Open a fresh case DB for each test."""
+    logger = get_test_logger()
+    result = open_case_db(logger, tmp_path / "test.duckdb")
+    assert result.is_ok()
+    conn = result.ok()
+    create_case(logger, conn, "case-001", "Test Case")
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
+def cases_dir(tmp_path):
+    """Temporary directory for case DB files."""
+    d = tmp_path / "cases"
+    d.mkdir()
+    return d

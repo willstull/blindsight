@@ -57,3 +57,5 @@ Negative:
 - Overkill if only storing tool-call history
 - Requires schema migration strategy as ontology evolves
 - Not designed for concurrent multi-user access
+
+Design note: No FOREIGN KEY constraints are defined. Entity/event/relationship ingestion is order-independent -- relationships can reference entity IDs before those entities are ingested. Integrity is enforced at the query layer (JOINs naturally exclude dangling references). This avoids INSERT ordering constraints during batch ingestion from domain responses.

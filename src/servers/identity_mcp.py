@@ -282,7 +282,7 @@ def create_identity_server(
 
 
 if __name__ == "__main__":
-    import structlog
+    from src.utils.logging import get_stderr_logger
 
     if len(sys.argv) < 2:
         print("Usage: python -m src.servers.identity_mcp <scenario_path>", file=sys.stderr)
@@ -293,7 +293,7 @@ if __name__ == "__main__":
         print(f"Scenario path not found: {scenario_path}", file=sys.stderr)
         sys.exit(1)
 
-    log = structlog.get_logger("identity_mcp")
+    log = get_stderr_logger("identity_mcp")
 
     from src.services.identity.factory import create_identity_integration, IntegrationMode
 
