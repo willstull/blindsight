@@ -203,7 +203,7 @@ class ReplayIdentityIntegration(DomainIntegration):
         limit: int = 2000,
         page_token: Optional[str] = None,
     ) -> IntegrationResult:
-        # Bidirectional traversal
+        # Bidirectional traversal at depth 1
         rels: list[Relationship] = []
         rels.extend(self._rels_by_from.get(entity_id, []))
         rels.extend(self._rels_by_to.get(entity_id, []))
@@ -211,13 +211,38 @@ class ReplayIdentityIntegration(DomainIntegration):
         if relationship_types:
             rels = [r for r in rels if r.relationship_type in relationship_types]
 
-        # Collect neighbor entity IDs
+        # Filter by time_range if provided (check first_seen/last_seen overlap)
+        if time_range:
+            rels = [r for r in rels if self._rel_overlaps_range(r, time_range)]
+
+        # Collect neighbor entity IDs from depth-1
         neighbor_ids: set[str] = set()
         for r in rels:
             if r.from_entity_id != entity_id:
                 neighbor_ids.add(r.from_entity_id)
             if r.to_entity_id != entity_id:
                 neighbor_ids.add(r.to_entity_id)
+
+        # Depth-2: traverse one more hop from each depth-1 neighbor
+        if depth >= 2:
+            depth1_ids = set(neighbor_ids)
+            for nid in depth1_ids:
+                hop2_rels: list[Relationship] = []
+                hop2_rels.extend(self._rels_by_from.get(nid, []))
+                hop2_rels.extend(self._rels_by_to.get(nid, []))
+                if relationship_types:
+                    hop2_rels = [r for r in hop2_rels if r.relationship_type in relationship_types]
+                if time_range:
+                    hop2_rels = [r for r in hop2_rels if self._rel_overlaps_range(r, time_range)]
+                for r in hop2_rels:
+                    if r not in rels:
+                        rels.append(r)
+                    if r.from_entity_id != nid:
+                        neighbor_ids.add(r.from_entity_id)
+                    if r.to_entity_id != nid:
+                        neighbor_ids.add(r.to_entity_id)
+            # Don't include the original entity as a neighbor
+            neighbor_ids.discard(entity_id)
 
         neighbors = [self._entity_by_id[eid] for eid in neighbor_ids if eid in self._entity_by_id]
 
@@ -227,6 +252,25 @@ class ReplayIdentityIntegration(DomainIntegration):
             coverage=self._make_coverage(time_range),
             limitations=self._make_limitations(),
         )
+
+    @staticmethod
+    def _rel_overlaps_range(rel: Relationship, time_range: TimeRange) -> bool:
+        """Check if a relationship's time bounds overlap the given range.
+
+        Rules:
+        - Both bounds present: standard interval overlap check.
+        - Only first_seen: must fall within [start, end] (point-in-time).
+        - Only last_seen: must fall within [start, end] (point-in-time).
+        - Neither bound: include (can't filter what we can't see).
+        """
+        if not rel.first_seen and not rel.last_seen:
+            return True
+        if rel.first_seen and rel.last_seen:
+            # Interval overlap: rel ends before range starts or starts after range ends
+            return not (rel.last_seen < time_range.start or rel.first_seen > time_range.end)
+        # Single timestamp: must fall within the range
+        ts = rel.first_seen or rel.last_seen
+        return time_range.start <= ts <= time_range.end
 
     async def describe_coverage(
         self,

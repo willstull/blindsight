@@ -102,11 +102,17 @@ def create_identity_server(
     ) -> dict:
         """Search entities by free-text query and optional filters."""
         request_id = generate_ulid()
+        from src.services.identity.validator import validate_limit
+        lim_result = validate_limit(logger, limit, max_limit=500)
+        if lim_result.is_err():
+            issue = lim_result.err()
+            return _build_error_envelope(request_id, issue.code, issue.message)
+
         result = await integration.search_entities(
             query=query,
             entity_types=entity_types,
             kinds=kinds,
-            limit=min(limit, 500),
+            limit=lim_result.ok(),
         )
         return _build_envelope(request_id, result)
 
@@ -130,10 +136,14 @@ def create_identity_server(
             limit: Maximum results (default 2000)
         """
         request_id = generate_ulid()
-        from src.services.identity.validator import validate_time_range
+        from src.services.identity.validator import validate_time_range, validate_limit
         tr_result = validate_time_range(logger, time_range_start, time_range_end)
         if tr_result.is_err():
             issue = tr_result.err()
+            return _build_error_envelope(request_id, issue.code, issue.message)
+        lim_result = validate_limit(logger, limit, max_limit=2000)
+        if lim_result.is_err():
+            issue = lim_result.err()
             return _build_error_envelope(request_id, issue.code, issue.message)
 
         time_range = tr_result.ok()
@@ -142,7 +152,7 @@ def create_identity_server(
             actions=actions,
             actor_entity_ids=actor_entity_ids,
             target_entity_ids=target_entity_ids,
-            limit=min(limit, 2000),
+            limit=lim_result.ok(),
         )
         return _build_envelope(request_id, result)
 
@@ -168,17 +178,34 @@ def create_identity_server(
         request_id = generate_ulid()
         if not entity_id or not entity_id.strip():
             return _build_error_envelope(request_id, "entity_id_required", "entity_id is required")
+        from src.services.identity.validator import validate_limit
+        lim_result = validate_limit(logger, limit, max_limit=2000)
+        if lim_result.is_err():
+            issue = lim_result.err()
+            return _build_error_envelope(request_id, issue.code, issue.message)
+
+        # Reject partial time range -- both or neither
+        if bool(time_range_start) != bool(time_range_end):
+            return _build_error_envelope(
+                request_id, "time_range_incomplete",
+                "Both time_range_start and time_range_end are required when filtering by time",
+            )
 
         time_range = None
         if time_range_start and time_range_end:
-            time_range = TimeRange(start=time_range_start, end=time_range_end)
+            from src.services.identity.validator import validate_time_range
+            tr_result = validate_time_range(logger, time_range_start, time_range_end)
+            if tr_result.is_err():
+                issue = tr_result.err()
+                return _build_error_envelope(request_id, issue.code, issue.message)
+            time_range = tr_result.ok()
 
         result = await integration.get_neighbors(
             entity_id=entity_id.strip(),
             relationship_types=relationship_types,
             time_range=time_range,
             depth=min(depth, 2),
-            limit=min(limit, 2000),
+            limit=lim_result.ok(),
         )
         return _build_envelope(request_id, result)
 
