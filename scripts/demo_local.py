@@ -27,192 +27,22 @@ from src.services.case.ingest import (
     ingest_evidence_items, ingest_claims, ingest_hypotheses,
 )
 from src.services.case.json_helpers import from_json
-from src.types.core import EvidenceItem, Claim, Hypothesis, Ref, TimeRange
-from src.utils.ulid import generate_ulid
+from src.services.investigation.scoring import (
+    build_evidence_items as _build_evidence_items_raw,
+    build_claims as _build_claims,
+    build_hypothesis as _build_hypothesis_raw,
+)
+from src.types.core import TimeRange
 
 
-def _build_evidence_items(
-    cred_events: list[dict],
-    cov_envelope: dict,
-    manifest: dict,
-) -> list[EvidenceItem]:
-    """Wrap discovered events and coverage into EvidenceItem objects."""
-    items = []
-
-    # One evidence item per credential change event
-    for evt in cred_events:
-        raw_refs = []
-        for rr in evt.get("raw_refs", []):
-            raw_refs.append(Ref(**rr))
-
-        targets = evt.get("targets", [])
-        related_entity_ids = [t["target_entity_id"] for t in targets]
-        related_entity_ids.append(evt["actor"]["actor_entity_id"])
-
-        items.append(EvidenceItem(
-            id=generate_ulid(),
-            tlp="AMBER",
-            domain="identity",
-            summary=f"{evt['action']} by {evt['actor']['actor_entity_id']} "
-                    f"at {evt['ts']} (outcome={evt['outcome']})",
-            raw_refs=raw_refs,
-            collected_at=evt["ts"],
-            related_entity_ids=related_entity_ids,
-            related_event_ids=[evt["id"]],
-        ))
-
-    # Coverage as evidence
-    cov = cov_envelope["coverage_report"]
-    items.append(EvidenceItem(
-        id=generate_ulid(),
-        tlp="AMBER",
-        domain="identity",
-        summary=f"Coverage report: {cov['overall_status']} "
-                f"({len(cov.get('sources', []))} source(s))",
-        raw_refs=[],
-        collected_at=manifest["time_range"].end,
-        related_entity_ids=[],
-        related_event_ids=[],
-    ))
-
-    return items
+def _build_evidence_items(cred_events, cov_envelope, manifest):
+    return _build_evidence_items_raw(cred_events, cov_envelope, manifest["time_range"])
 
 
-def _build_claims(
-    cred_events: list[dict],
-    source_ips: set[str],
-    subject_id: str,
-    evidence_items: list[EvidenceItem],
-    cov_envelope: dict,
-    time_range: TimeRange,
-) -> list[Claim]:
-    """Create Claim objects from correlation findings."""
-    claims = []
-    evidence_ids = [ei.id for ei in evidence_items]
-    cov_status = cov_envelope["coverage_report"]["overall_status"]
-
-    if cred_events:
-        all_self_directed = all(
-            evt["actor"]["actor_entity_id"] == subject_id
-            for evt in cred_events
-        )
-
-        if all_self_directed:
-            claims.append(Claim(
-                id=generate_ulid(),
-                tlp="AMBER",
-                statement=f"All {len(cred_events)} credential change(s) were "
-                          f"self-directed by {subject_id}",
-                polarity="supports",
-                confidence=0.95 if cov_status == "complete" else 0.6,
-                backed_by_evidence_ids=evidence_ids,
-                subject_entity_ids=[subject_id],
-                time_range=time_range,
-            ))
-
-        single_ip = len(source_ips) <= 1
-        if single_ip and source_ips:
-            claims.append(Claim(
-                id=generate_ulid(),
-                tlp="AMBER",
-                statement=f"All activity from single source IP "
-                          f"({', '.join(source_ips)})",
-                polarity="supports",
-                confidence=0.9 if cov_status == "complete" else 0.5,
-                backed_by_evidence_ids=evidence_ids,
-                subject_entity_ids=[subject_id],
-                time_range=time_range,
-            ))
-        elif len(source_ips) > 1:
-            claims.append(Claim(
-                id=generate_ulid(),
-                tlp="AMBER",
-                statement=f"Multiple source IPs observed ({len(source_ips)}): "
-                          f"{', '.join(sorted(source_ips))}",
-                polarity="contradicts",
-                confidence=0.8,
-                backed_by_evidence_ids=evidence_ids,
-                subject_entity_ids=[subject_id],
-                time_range=time_range,
-            ))
-
-    # Coverage claim
-    if cov_status != "complete":
-        claims.append(Claim(
-            id=generate_ulid(),
-            tlp="AMBER",
-            statement=f"Coverage is {cov_status} -- findings are constrained "
-                      f"by data gaps",
-            polarity="neutral",
-            confidence=1.0,
-            backed_by_evidence_ids=[evidence_ids[-1]] if evidence_ids else [],
-            time_range=time_range,
-        ))
-
-    return claims
-
-
-def _build_hypothesis(
-    claims: list[Claim],
-    cov_envelope: dict,
-    manifest: dict,
-    cred_events: list[dict],
-    evidence_prefixes: list[str],
-) -> Hypothesis:
-    """Create a Hypothesis with scores derived from coverage and claims."""
-    cov = cov_envelope["coverage_report"]
-    cov_status = cov["overall_status"]
-
-    supporting = [c for c in claims if c.polarity == "supports"]
-    contradicting = [c for c in claims if c.polarity == "contradicts"]
-
-    # Likelihood from claim confidences
-    if supporting:
-        likelihood = sum(c.confidence for c in supporting) / len(supporting)
-    elif cred_events:
-        likelihood = 0.5
-    else:
-        likelihood = 0.3
-
-    # Confidence limit from coverage
-    if cov_status == "complete":
-        confidence_limit = 0.95
-    elif cov_status == "partial":
-        confidence_limit = 0.6
-    else:
-        confidence_limit = 0.3
-
-    # Contradicting claims reduce likelihood
-    if contradicting:
-        likelihood *= 0.7
-
-    gaps = [cov["id"]] if cov_status != "complete" else []
-
-    next_evidence_requests = []
-    if cov_status != "complete":
-        next_evidence_requests.append({
-            "domain": "identity",
-            "tool": "search_events",
-            "params": {
-                "actions": [f"{p}*" for p in evidence_prefixes],
-                "time_range_start": manifest["time_range"].start,
-                "time_range_end": manifest["time_range"].end,
-            },
-            "priority": "high",
-        })
-
-    return Hypothesis(
-        id=generate_ulid(),
-        tlp="AMBER",
-        iq_id=manifest.get("question", "IQ-unknown"),
-        statement="Credential changes are legitimate self-service activity",
-        likelihood_score=round(likelihood, 3),
-        confidence_limit=round(confidence_limit, 3),
-        supporting_claim_ids=[c.id for c in supporting],
-        contradicting_claim_ids=[c.id for c in contradicting] or None,
-        gaps=gaps,
-        next_evidence_requests=next_evidence_requests,
-        status="open",
+def _build_hypothesis(claims, cov_envelope, manifest, cred_events, evidence_prefixes):
+    return _build_hypothesis_raw(
+        claims, cov_envelope, manifest.get("question", "IQ-unknown"),
+        cred_events, evidence_prefixes,
     )
 
 

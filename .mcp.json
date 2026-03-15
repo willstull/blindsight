@@ -19,6 +19,15 @@
         "src.servers.case_mcp",
         "/tmp/blindsight-cases"
       ]
+    },
+    "blindsight-investigation": {
+      "command": "poetry",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "src.servers.investigation_mcp"
+      ]
     }
   }
 }

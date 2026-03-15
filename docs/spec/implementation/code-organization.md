@@ -4,10 +4,11 @@ This document defines the structure and conventions for Blindsight implementatio
 
 ## Project Scope
 
-Two MCP servers:
+Three MCP servers:
 
 1. **Identity MCP Server**: Evidence domain providing normalized identity telemetry (replay-backed, optionally live-backed)
 2. **Case MCP Server**: Case record store providing persistence, correlation queries, and export/replay
+3. **Investigation MCP Server**: Orchestration layer that calls identity + case servers via MCP subprocess to run bounded investigations
 
 This is not "just an MCP server." The practicum demonstrates:
 - Tool contract + schema discipline
@@ -44,9 +45,15 @@ src/
       query.py         # Correlation queries across entities/events
       export.py        # Export case data (for replay/archival)
 
+    investigation/
+      scoring.py       # Pure scoring functions (evidence, claims, hypothesis)
+      mcp_client.py    # MCP client helpers (open session, call tool)
+      pipeline.py      # Investigation loop via MCP calls
+
   servers/
     identity_mcp.py    # Identity domain MCP server
     case_mcp.py        # Case MCP server
+    investigation_mcp.py  # Investigation orchestration MCP server
 
   utils/
     logging.py         # Logger factory
@@ -683,7 +690,7 @@ Services should not import other services. Compose at entrypoint (server).
 
 This is not generic MCP advice. This is Blindsight-specific:
 
-1. **Two MCP servers**: Identity domain (evidence) + Case (correlation/persistence)
+1. **Three MCP servers**: Identity domain (evidence) + Case (correlation/persistence) + Investigation (orchestration via MCP subprocess)
 2. **Result types throughout**: No exceptions as control flow
 3. **Safeloop organization**: entrypoints → services → types
 4. **Pass logger explicitly**: Enriched at entrypoint, passed to services

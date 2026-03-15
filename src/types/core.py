@@ -139,3 +139,26 @@ class Hypothesis(BaseModel):
     next_evidence_requests: list[dict] = Field(default_factory=list)
     status: Optional[str] = None  # open | ruled_in | ruled_out | stale
     updated_at: Optional[str] = None  # RFC3339
+
+
+class InvestigationStep(BaseModel):
+    stage: str
+    description: str
+    tool_calls: list[str] = Field(default_factory=list)
+    key_findings: list[str] = Field(default_factory=list)
+
+
+class InvestigationReport(BaseModel):
+    scenario_name: str
+    investigation_question: str
+    steps: list[InvestigationStep] = Field(default_factory=list)
+    hypothesis: str
+    likelihood_assessment: str
+    confidence_assessment: str
+    likelihood_score: float
+    confidence_limit: float
+    gaps: list[str] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
+    case_id: Optional[str] = None
+    total_events_evaluated: int = 0
+    tool_calls_used: int = 0

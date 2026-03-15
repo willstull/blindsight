@@ -32,7 +32,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.usage import UsageLimits
@@ -42,28 +41,7 @@ from scripts._investigation import (
     discover_scenarios, select_scenarios,
     DIVIDER, SECTION,
 )
-
-
-# -- Structured output types --
-
-class InvestigationStep(BaseModel):
-    stage: str
-    description: str
-    tool_calls: list[str]
-    key_findings: list[str]
-
-
-class InvestigationReport(BaseModel):
-    scenario_name: str
-    investigation_question: str
-    steps: list[InvestigationStep]
-    hypothesis: str
-    likelihood_assessment: str
-    confidence_assessment: str
-    likelihood_score: float
-    confidence_limit: float
-    gaps: list[str]
-    next_steps: list[str]
+from src.types.core import InvestigationStep, InvestigationReport
 
 
 # -- System prompt --

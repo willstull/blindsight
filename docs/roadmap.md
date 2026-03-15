@@ -63,3 +63,20 @@
 - Stored objects can be queried and retrieved
 - Tool-call history enables investigation replay
 - Schema handles ontology types correctly
+
+## Milestone 5: Investigation Orchestration Server
+
+**Outcome**: MCP server that orchestrates identity + case servers to run bounded investigations. One `run_investigation` call produces a structured report with hypothesis, scores, and gaps.
+
+**Capabilities**:
+- Mechanical mode: deterministic scoring, no LLM, reproducible results
+- LLM mode: same mechanical scores, LLM writes narrative text
+- Per-investigation subprocess lifecycle (no cross-contamination)
+- Scoring extracted into reusable service functions
+
+**Validation**:
+- Existing tests pass
+- Server starts and accepts MCP connections
+- describe_scenario returns manifest metadata
+- run_investigation produces valid InvestigationReport matching demo_local.py scores
+- No stdout leaks from subprocess servers

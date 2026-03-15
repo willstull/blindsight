@@ -24,6 +24,7 @@ Stable interfaces and invariants:
 - [ADR-0004: Domain-Based Architecture](adr/ADR-0004-domain-based-architecture.md)
 - [ADR-0005: Coverage-Aware Hypothesis Scoring](adr/ADR-0005-gap-aware-hypothesis-scoring.md)
 - [ADR-0006: MCP Tool Contracts](adr/ADR-0006-mcp-tool-contracts.md)
+- [ADR-0007: Investigation Orchestration Server](adr/ADR-0007-investigation-orchestration-server.md)
 
 ## Project Information
 
