@@ -3,12 +3,21 @@
 Each test launches real identity + case MCP subprocesses against replay
 data. Tests are deterministic but slower (~3s each due to subprocess startup).
 """
+import json
 import logging
+import os
+import tempfile
 
 import pytest
 
+from mcp.client.session import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
+
+from src.services.investigation.mcp_client import open_mcp_session, call_tool
 from src.services.investigation.pipeline import run_investigation
 from tests.conftest import FIXTURES_DIR
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _logger():
@@ -89,4 +98,53 @@ class TestInvestigationPipeline:
             await run_investigation(
                 FIXTURES_DIR / "does_not_exist",
                 _logger(),
+            )
+
+    async def test_tool_calls_recorded_in_case(self):
+        """Pipeline should record tool call audit history in the case store.
+
+        Runs the pipeline with a known cases_dir, then opens a fresh case
+        server against the same directory and queries get_tool_call_history_tool
+        to verify audit rows were actually written.
+        """
+        logger = _logger()
+        cases_dir = tempfile.mkdtemp(prefix="blindsight_test_audit_")
+        scenario_path = FIXTURES_DIR / "credential_change_baseline"
+
+        report = await run_investigation(
+            scenario_path, logger, cases_dir=cases_dir,
+        )
+        assert report.case_id is not None
+
+        # Open a fresh case server against the same cases_dir and query history
+        async with open_mcp_session(
+            "python",
+            [f"{_PROJECT_ROOT}/src/servers/case_mcp.py", cases_dir],
+            logger,
+        ) as case_session:
+            history = await call_tool(case_session, "get_tool_call_history_tool", {
+                "case_id": report.case_id,
+                "limit": 100,
+            }, logger)
+
+            results = history.get("results", [])
+            recorded_tools = [r["tool_name"] for r in results]
+
+            # Verify key tools were recorded
+            assert "create_case_tool" in recorded_tools, (
+                f"create_case_tool missing from audit history: {recorded_tools}"
+            )
+            assert "describe_coverage" in recorded_tools, (
+                f"describe_coverage missing from audit history: {recorded_tools}"
+            )
+            assert "search_events" in recorded_tools, (
+                f"search_events missing from audit history: {recorded_tools}"
+            )
+            assert "search_entities" in recorded_tools, (
+                f"search_entities missing from audit history: {recorded_tools}"
+            )
+
+            # Should have a substantial number of recorded calls
+            assert len(results) >= 8, (
+                f"Expected at least 8 recorded tool calls, got {len(results)}: {recorded_tools}"
             )

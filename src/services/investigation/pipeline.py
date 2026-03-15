@@ -5,6 +5,7 @@ executes a bounded investigation loop, and returns an InvestigationReport.
 """
 import logging
 import tempfile
+import time
 from pathlib import Path
 
 from src.services.investigation.mcp_client import open_mcp_session, call_tool
@@ -19,6 +20,41 @@ from src.utils.serialization import load_yaml
 
 
 _PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent)
+
+
+async def _call_and_record(
+    session,
+    case_session,
+    tool_name: str,
+    arguments: dict,
+    logger: logging.Logger,
+    case_id: str,
+    domain: str,
+) -> dict:
+    """Call a tool and record the call in the case store for audit history.
+
+    Returns the tool response dict. Recording failures are logged but
+    do not block the pipeline.
+    """
+    start = time.monotonic()
+    result = await call_tool(session, tool_name, arguments, logger)
+    duration_ms = int((time.monotonic() - start) * 1000)
+
+    # Record the tool call -- best-effort, don't fail the pipeline
+    try:
+        await call_tool(case_session, "record_tool_call_tool", {
+            "case_id": case_id,
+            "domain": domain,
+            "tool_name": tool_name,
+            "request_params": arguments,
+            "response_status": result.get("status", "unknown"),
+            "response_body": result,
+            "duration_ms": duration_ms,
+        }, logger)
+    except Exception:
+        logger.warning("Failed to record tool call", extra={"tool": tool_name})
+
+    return result
 
 
 def _load_manifest(scenario_path: Path) -> dict:
@@ -67,6 +103,7 @@ async def run_investigation(
     max_events: int = 2000,
     use_llm: bool = False,
     llm_model: str | None = None,
+    cases_dir: str | None = None,
 ) -> InvestigationReport:
     """Run a bounded investigation against a scenario via MCP subprocesses.
 
@@ -81,6 +118,7 @@ async def run_investigation(
         max_events: Max events to request from search_events.
         use_llm: If True, use LLM for narrative (scores still mechanical).
         llm_model: Model identifier for LLM mode.
+        cases_dir: Directory for case DB files. If None, uses a temp directory.
 
     Returns:
         InvestigationReport with hypothesis, scores, gaps, and steps.
@@ -102,7 +140,7 @@ async def run_investigation(
     def _check_budget() -> bool:
         return tool_call_count < max_tool_calls
 
-    tmp_dir = tempfile.mkdtemp(prefix="blindsight_inv_")
+    tmp_dir = cases_dir or tempfile.mkdtemp(prefix="blindsight_inv_")
 
     identity_cmd = "python"
     identity_args = [
@@ -145,15 +183,35 @@ async def run_investigation(
         step1.key_findings.append(f"Case created: {case_id}")
         steps.append(step1)
 
+        # Record create_case_tool now that we have case_id
+        try:
+            await call_tool(case_session, "record_tool_call_tool", {
+                "case_id": case_id,
+                "domain": "case",
+                "tool_name": "create_case_tool",
+                "request_params": {
+                    "title": manifest["description"],
+                    "tlp": "AMBER",
+                    "severity": "sev3",
+                    "tags": manifest["tags"],
+                },
+                "response_status": case_result.get("status", "unknown"),
+                "response_body": case_result,
+            }, logger)
+        except Exception:
+            logger.warning("Failed to record create_case_tool call")
+
         # -- Step 2: Check coverage --
         step2 = InvestigationStep(stage="Check coverage", description="Assess data availability and gaps")
         if not _check_budget():
             return _error_report(scenario_name, question, "Tool call budget exhausted")
 
-        cov_envelope = await call_tool(id_session, "describe_coverage", {
-            "time_range_start": time_range.start,
-            "time_range_end": time_range.end,
-        }, logger)
+        cov_envelope = await _call_and_record(
+            id_session, case_session, "describe_coverage", {
+                "time_range_start": time_range.start,
+                "time_range_end": time_range.end,
+            }, logger, case_id, "identity",
+        )
         tool_call_count += 1
         step2.tool_calls.append("describe_coverage")
 
@@ -175,10 +233,12 @@ async def run_investigation(
         if not _check_budget():
             return _error_report(scenario_name, question, "Tool call budget exhausted")
 
-        principal_envelope = await call_tool(id_session, "search_entities", {
-            "query": principal_hint or "",
-            "entity_types": ["principal"],
-        }, logger)
+        principal_envelope = await _call_and_record(
+            id_session, case_session, "search_entities", {
+                "query": principal_hint or "",
+                "entity_types": ["principal"],
+            }, logger, case_id, "identity",
+        )
         tool_call_count += 1
         step3.tool_calls.append("search_entities")
 
@@ -217,9 +277,11 @@ async def run_investigation(
         if not _check_budget():
             return _error_report(scenario_name, question, "Tool call budget exhausted")
 
-        neighbor_envelope = await call_tool(id_session, "get_neighbors", {
-            "entity_id": subject_id,
-        }, logger)
+        neighbor_envelope = await _call_and_record(
+            id_session, case_session, "get_neighbors", {
+                "entity_id": subject_id,
+            }, logger, case_id, "identity",
+        )
         tool_call_count += 1
         step4.tool_calls.append("get_neighbors")
 
@@ -240,7 +302,10 @@ async def run_investigation(
         if not _check_budget():
             return _error_report(scenario_name, question, "Tool call budget exhausted")
 
-        domain_info = await call_tool(id_session, "describe_domain", {}, logger)
+        domain_info = await _call_and_record(
+            id_session, case_session, "describe_domain", {},
+            logger, case_id, "identity",
+        )
         tool_call_count += 1
         step5.tool_calls.append("describe_domain")
 
@@ -259,11 +324,13 @@ async def run_investigation(
             return _error_report(scenario_name, question, "Tool call budget exhausted")
 
         limit = min(max_events, 2000)
-        events_envelope = await call_tool(id_session, "search_events", {
-            "time_range_start": time_range.start,
-            "time_range_end": time_range.end,
-            "limit": limit,
-        }, logger)
+        events_envelope = await _call_and_record(
+            id_session, case_session, "search_events", {
+                "time_range_start": time_range.start,
+                "time_range_end": time_range.end,
+                "limit": limit,
+            }, logger, case_id, "identity",
+        )
         tool_call_count += 1
         step6.tool_calls.append("search_events")
 
@@ -306,10 +373,12 @@ async def run_investigation(
             last_day = int(last_ts[8:10])
             narrow_end = last_ts[:8] + f"{min(last_day + 2, 28):02d}T23:59:59Z"
 
-            narrow_envelope = await call_tool(id_session, "search_events", {
-                "time_range_start": narrow_start,
-                "time_range_end": narrow_end,
-            }, logger)
+            narrow_envelope = await _call_and_record(
+                id_session, case_session, "search_events", {
+                    "time_range_start": narrow_start,
+                    "time_range_end": narrow_end,
+                }, logger, case_id, "identity",
+            )
             tool_call_count += 1
             step7.tool_calls.append("search_events")
 
@@ -322,11 +391,13 @@ async def run_investigation(
 
             # Get timeline from case store
             if _check_budget():
-                timeline_result = await call_tool(case_session, "get_timeline_tool", {
-                    "case_id": case_id,
-                    "time_range_start": narrow_start,
-                    "time_range_end": narrow_end,
-                }, logger)
+                timeline_result = await _call_and_record(
+                    case_session, case_session, "get_timeline_tool", {
+                        "case_id": case_id,
+                        "time_range_start": narrow_start,
+                        "time_range_end": narrow_end,
+                    }, logger, case_id, "case",
+                )
                 tool_call_count += 1
                 step7.tool_calls.append("get_timeline_tool")
 
@@ -340,10 +411,12 @@ async def run_investigation(
         source_ips: set[str] = set()
 
         if _check_budget():
-            case_events_result = await call_tool(case_session, "query_events_tool", {
-                "case_id": case_id,
-                "actor_entity_id": subject_id,
-            }, logger)
+            case_events_result = await _call_and_record(
+                case_session, case_session, "query_events_tool", {
+                    "case_id": case_id,
+                    "actor_entity_id": subject_id,
+                }, logger, case_id, "case",
+            )
             tool_call_count += 1
             step8.tool_calls.append("query_events_tool")
 
@@ -354,11 +427,13 @@ async def run_investigation(
             step8.key_findings.append(f"Source IPs: {sorted(source_ips) or '(none)'}")
 
         if _check_budget():
-            case_neighbors_result = await call_tool(case_session, "query_neighbors_tool", {
-                "case_id": case_id,
-                "entity_id": subject_id,
-                "relationship_types": ["has_credential"],
-            }, logger)
+            case_neighbors_result = await _call_and_record(
+                case_session, case_session, "query_neighbors_tool", {
+                    "case_id": case_id,
+                    "entity_id": subject_id,
+                    "relationship_types": ["has_credential"],
+                }, logger, case_id, "case",
+            )
             tool_call_count += 1
             step8.tool_calls.append("query_neighbors_tool")
 
