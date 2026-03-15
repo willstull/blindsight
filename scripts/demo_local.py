@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Demo: analysis-aware investigation with structured Claim/Hypothesis objects.
+"""Demo: deterministic local investigation with structured analytic types.
 
-Extends the shared investigation pipeline to produce structured analytic
-objects (EvidenceItem, Claim, Hypothesis), persist them to the case store,
-and query them back. Demonstrates the full loop: investigate -> analyze ->
-store -> retrieve.
+Runs the investigation pipeline locally (no LLM, no API calls) and produces
+structured EvidenceItem, Claim, and Hypothesis objects with mechanical scoring.
+Persists to the case store and verifies the round-trip.
+
+For the LLM-driven version that goes through the MCP interface, see demo_agent.py.
 
 Usage:
-    poetry run python scripts/demo_analysis.py
+    poetry run python scripts/demo_local.py
 """
 import asyncio
 import json
@@ -340,7 +341,7 @@ async def main():
 
     families = discover_scenarios()
 
-    heading("BLINDSIGHT ANALYSIS-AWARE DEMO")
+    heading("BLINDSIGHT LOCAL INVESTIGATION DEMO")
 
     scenarios_to_run = await select_scenarios(families)
     if not scenarios_to_run:
@@ -371,7 +372,7 @@ async def main():
             print(f"    Next requests:    {hyp['next_requests']}")
         print()
 
-    heading("ANALYSIS DEMO COMPLETE")
+    heading("LOCAL DEMO COMPLETE")
     narrate(
         "Key takeaway: Structured Claim and Hypothesis objects make the\n"
         "reasoning chain explicit and auditable. The confidence_limit\n"

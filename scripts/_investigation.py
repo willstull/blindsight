@@ -1,7 +1,7 @@
 """Shared investigation logic for demo scripts.
 
-Extracted from demo.py to allow multiple demo frontends (text-based,
-analysis-aware) to share the discovery-driven investigation pipeline.
+Extracted to allow multiple demo frontends (demo_local.py, demo_agent.py)
+to share scenario discovery and manifest loading.
 """
 import logging
 import tempfile
