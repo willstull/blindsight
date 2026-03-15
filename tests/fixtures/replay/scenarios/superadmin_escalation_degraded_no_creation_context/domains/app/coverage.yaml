@@ -1,0 +1,6 @@
+domain: app
+overall_status: unknown
+sources:
+- source_name: app_audit
+  status: unknown
+notes: No app domain server available for verification

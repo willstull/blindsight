@@ -1,0 +1,37 @@
+{
+  "scenario_name": "superadmin_escalation_degraded_no_access_logs",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z",
+        "actions": [
+          "privilege.grant"
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "event_count": 3,
+        "event_ids": [
+          "evt_d011",
+          "evt_d012",
+          "evt_d013"
+        ],
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "describe_coverage",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z"
+      },
+      "expected": {
+        "status": "success",
+        "coverage_overall_status": "complete",
+        "source_count": 1
+      }
+    }
+  ]
+}

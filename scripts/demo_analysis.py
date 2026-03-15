@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts._investigation import (
     heading, step, narrate, load_manifest,
-    discover_scenarios, investigate,
+    discover_scenarios, select_scenarios, investigate,
 )
 from src.services.case.ingest import (
     ingest_evidence_items, ingest_claims, ingest_hypotheses,
@@ -338,39 +338,24 @@ async def main():
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    all_scenarios, baseline, degraded = discover_scenarios()
+    families = discover_scenarios()
 
     heading("BLINDSIGHT ANALYSIS-AWARE DEMO")
-    narrate(f"Discovered {len(all_scenarios)} scenario(s)")
-    print()
-    narrate(
-        "This demo extends the investigation pipeline with structured\n"
-        "analytic objects: EvidenceItem, Claim, and Hypothesis.\n"
-        "\n"
-        "Each scenario produces a Hypothesis with likelihood_score\n"
-        "(what evidence suggests) and confidence_limit (what we can\n"
-        "verify given data availability). The difference between\n"
-        "baseline and degraded shows how coverage gaps constrain\n"
-        "the confidence limit."
-    )
 
-    scenarios_to_run = []
-    if baseline:
-        scenarios_to_run.append(baseline)
-    if degraded:
-        scenarios_to_run.append(degraded[0])
-
+    scenarios_to_run = await select_scenarios(families)
     if not scenarios_to_run:
-        print("  No scenarios found. Exiting.")
+        print("  No scenarios selected. Exiting.")
         return
+
+    narrate(f"Running {len(scenarios_to_run)} scenario(s)")
 
     results = []
     for scenario_path in scenarios_to_run:
         result = await run_analysis(scenario_path)
         results.append(result)
 
-    # -- Comparison --
-    heading("HYPOTHESIS COMPARISON")
+    # -- Summary --
+    heading("HYPOTHESIS SUMMARY")
     for r in results:
         hyp = r.get("hypothesis")
         print(f"  {r['scenario_name']} (variant={r['variant']}):")

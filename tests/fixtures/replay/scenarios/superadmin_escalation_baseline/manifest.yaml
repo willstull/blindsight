@@ -1,0 +1,17 @@
+scenario_name: superadmin_escalation_baseline
+version: '1.0'
+description: 'Baseline scenario: superadmin privilege escalation with complete telemetry'
+investigation_question: Did the compromised kwilson account escalate rchen.ops to
+  superadmin at Cascade Industries?
+time_range:
+  start: '2026-03-01T00:00:00Z'
+  end: '2026-03-31T23:59:59Z'
+domains:
+- identity
+- app
+variant: baseline
+tags:
+- superadmin_escalation
+- identity_domain
+- app_domain
+- complete_coverage

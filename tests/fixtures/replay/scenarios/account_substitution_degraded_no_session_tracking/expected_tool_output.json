@@ -1,0 +1,36 @@
+{
+  "scenario_name": "account_substitution_degraded_no_session_tracking",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z",
+        "actions": [
+          "auth.account.create",
+          "auth.account.delete",
+          "auth.account.disable",
+          "credential.enroll",
+          "privilege.grant"
+        ]
+      },
+      "expected": {
+        "status": "partial",
+        "event_count": 7,
+        "coverage_overall_status": "partial"
+      }
+    },
+    {
+      "tool": "describe_coverage",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z"
+      },
+      "expected": {
+        "status": "partial",
+        "coverage_overall_status": "partial",
+        "source_count": 1
+      }
+    }
+  ]
+}

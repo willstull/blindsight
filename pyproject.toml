@@ -18,6 +18,7 @@ duckdb = "^1.4.4"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
 pytest-asyncio = "^0.24"
+prompt-toolkit = "^3.0.52"
 
 [tool.poetry.group.mcp.dependencies]
 pydantic-ai-slim = {extras = ["anthropic"], version = "^0.2.0"}

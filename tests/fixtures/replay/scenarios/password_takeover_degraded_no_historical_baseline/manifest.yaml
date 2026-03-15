@@ -1,0 +1,15 @@
+scenario_name: password_takeover_degraded_no_historical_baseline
+version: '1.0'
+description: 'Degraded: historical authentication logs prior to 2026-03-14 unavailable'
+investigation_question: Was the dormant account mgarcia at Meridian Systems taken
+  over via cross-account password change from the compromised cgarcia account?
+time_range:
+  start: '2026-03-01T00:00:00Z'
+  end: '2026-03-31T23:59:59Z'
+domains:
+- identity
+variant: degraded_no_historical_baseline
+tags:
+- password_takeover
+- identity_domain
+- retention_gap

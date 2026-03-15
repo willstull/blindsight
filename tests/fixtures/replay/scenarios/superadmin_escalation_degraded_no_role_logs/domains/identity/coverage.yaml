@@ -1,0 +1,9 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: partial
+  quality_flags:
+  - privilege_audit_unavailable
+  notes: Privilege change audit logs unavailable
+notes: Privilege audit logs unavailable; escalation events not visible

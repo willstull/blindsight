@@ -1,0 +1,8 @@
+domain: identity
+overall_status: complete
+sources:
+- source_name: okta
+  status: complete
+- source_name: network_flow
+  status: complete
+notes: Baseline with complete telemetry from Okta and network flow data

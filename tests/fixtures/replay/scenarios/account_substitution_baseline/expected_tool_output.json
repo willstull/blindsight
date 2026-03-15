@@ -1,0 +1,72 @@
+{
+  "scenario_name": "account_substitution_baseline",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z",
+        "actions": [
+          "auth.account.create",
+          "auth.account.delete",
+          "auth.account.disable",
+          "credential.enroll",
+          "privilege.grant"
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "event_count": 7,
+        "event_ids": [
+          "evt_b007",
+          "evt_b008",
+          "evt_b013",
+          "evt_b014",
+          "evt_b015",
+          "evt_b016",
+          "evt_b021"
+        ],
+        "entity_count": 5,
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_entity",
+      "args": {
+        "entity_id": "principal_mreyes"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 1,
+        "entity_ids": [
+          "principal_mreyes"
+        ],
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_neighbors",
+      "args": {
+        "entity_id": "principal_garcia_carlos"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 4,
+        "relationship_count": 4,
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "describe_coverage",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z"
+      },
+      "expected": {
+        "status": "success",
+        "coverage_overall_status": "complete",
+        "source_count": 1
+      }
+    }
+  ]
+}

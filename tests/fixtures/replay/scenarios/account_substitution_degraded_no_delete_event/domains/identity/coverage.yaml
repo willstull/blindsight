@@ -1,0 +1,9 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: partial
+  quality_flags:
+  - lifecycle_incomplete
+  notes: Account deletion events not captured
+notes: Account lifecycle incomplete; deletion event and deleted account not visible

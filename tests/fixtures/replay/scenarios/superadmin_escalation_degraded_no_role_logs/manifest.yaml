@@ -1,0 +1,17 @@
+scenario_name: superadmin_escalation_degraded_no_role_logs
+version: '1.0'
+description: 'Degraded: privilege audit logs unavailable'
+investigation_question: Did the compromised kwilson account escalate rchen.ops to
+  superadmin at Cascade Industries?
+time_range:
+  start: '2026-03-01T00:00:00Z'
+  end: '2026-03-31T23:59:59Z'
+domains:
+- identity
+- app
+variant: degraded_no_role_logs
+tags:
+- superadmin_escalation
+- identity_domain
+- app_domain
+- privilege_audit_unavailable

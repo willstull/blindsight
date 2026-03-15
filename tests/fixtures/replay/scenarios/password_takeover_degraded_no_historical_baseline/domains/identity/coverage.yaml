@@ -1,0 +1,11 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: partial
+  quality_flags:
+  - retention_gap
+  notes: Authentication logs prior to 2026-03-14 unavailable
+- source_name: network_flow
+  status: complete
+notes: Historical baseline unavailable due to log retention gap

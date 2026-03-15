@@ -1,0 +1,9 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: partial
+  quality_flags:
+  - provisioning_gap
+  notes: Account provisioning logs rotated before retention window
+notes: Account provisioning records unavailable; cannot attribute sleeper creation

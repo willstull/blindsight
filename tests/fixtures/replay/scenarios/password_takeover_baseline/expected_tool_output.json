@@ -1,0 +1,66 @@
+{
+  "scenario_name": "password_takeover_baseline",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z",
+        "actions": [
+          "credential.*",
+          "privilege.*",
+          "auth.account.*"
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "event_count": 3,
+        "event_ids": [
+          "evt_c010",
+          "evt_c012",
+          "evt_c013"
+        ],
+        "entity_count": 4,
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_entity",
+      "args": {
+        "entity_id": "principal_cgarcia"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 1,
+        "entity_ids": [
+          "principal_cgarcia"
+        ],
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_neighbors",
+      "args": {
+        "entity_id": "principal_mgarcia"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 4,
+        "relationship_count": 4,
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "describe_coverage",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z"
+      },
+      "expected": {
+        "status": "success",
+        "coverage_overall_status": "complete",
+        "source_count": 2
+      }
+    }
+  ]
+}

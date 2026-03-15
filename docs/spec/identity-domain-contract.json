@@ -221,7 +221,7 @@
         "version": "0.1.0",
         "capabilities": {
           "supported_entity_types": ["principal", "credential", "session", "device"],
-          "supported_actions_prefixes": ["auth.", "credential."],
+          "supported_actions_prefixes": ["auth.", "credential.", "privilege."],
           "supports_neighbors": true,
           "supports_coverage": true
         }

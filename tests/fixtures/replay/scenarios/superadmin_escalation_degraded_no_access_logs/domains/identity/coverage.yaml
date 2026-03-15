@@ -1,0 +1,6 @@
+domain: identity
+overall_status: complete
+sources:
+- source_name: okta
+  status: complete
+notes: Baseline scenario with complete telemetry from Okta

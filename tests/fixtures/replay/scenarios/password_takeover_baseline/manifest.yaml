@@ -1,0 +1,15 @@
+scenario_name: password_takeover_baseline
+version: '1.0'
+description: 'Baseline scenario: cross-account password takeover with complete telemetry'
+investigation_question: Was the dormant account mgarcia at Meridian Systems taken
+  over via cross-account password change from the compromised cgarcia account?
+time_range:
+  start: '2026-03-01T00:00:00Z'
+  end: '2026-03-31T23:59:59Z'
+domains:
+- identity
+variant: baseline
+tags:
+- password_takeover
+- identity_domain
+- complete_coverage

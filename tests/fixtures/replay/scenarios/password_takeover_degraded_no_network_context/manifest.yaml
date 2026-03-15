@@ -1,0 +1,16 @@
+scenario_name: password_takeover_degraded_no_network_context
+version: '1.0'
+description: 'Degraded: network flow data unavailable, IP and geolocation context
+  missing'
+investigation_question: Was the dormant account mgarcia at Meridian Systems taken
+  over via cross-account password change from the compromised cgarcia account?
+time_range:
+  start: '2026-03-01T00:00:00Z'
+  end: '2026-03-31T23:59:59Z'
+domains:
+- identity
+variant: degraded_no_network_context
+tags:
+- password_takeover
+- identity_domain
+- missing_network

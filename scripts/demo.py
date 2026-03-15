@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts._investigation import (
     heading, step, narrate, load_manifest,
-    discover_scenarios, investigate,
+    discover_scenarios, select_scenarios, investigate,
 )
 from src.services.case.query import get_tool_call_history
 from tests.conftest import get_test_logger
@@ -182,36 +182,16 @@ async def main():
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    all_scenarios, baseline, degraded = discover_scenarios()
+    families = discover_scenarios()
 
     heading("BLINDSIGHT INVESTIGATION DEMO")
-    narrate(f"Discovered {len(all_scenarios)} scenario(s) under scenarios/")
-    for path in all_scenarios:
-        m = load_manifest(path)
-        narrate(f"  {m['scenario_name']} (variant={m['variant']})")
-    print()
-    narrate(
-        "This demo walks through an incident investigation using both MCP\n"
-        "servers: the identity domain (evidence source) and the case store\n"
-        "(persistence + correlation).\n"
-        "\n"
-        "The same investigation logic runs against each scenario. Nothing\n"
-        "about the entities, actions, or structure is hardcoded -- everything\n"
-        "is discovered from the data.\n"
-        "\n"
-        "Two scenarios are shown: baseline (complete data) and one degraded\n"
-        "variant, to demonstrate how coverage gaps change the conclusion."
-    )
 
-    scenarios_to_run = []
-    if baseline:
-        scenarios_to_run.append(baseline)
-    if degraded:
-        scenarios_to_run.append(degraded[0])
-
+    scenarios_to_run = await select_scenarios(families)
     if not scenarios_to_run:
-        print("  No scenarios found. Exiting.")
+        print("  No scenarios selected. Exiting.")
         return
+
+    narrate(f"Running {len(scenarios_to_run)} scenario(s)")
 
     findings = []
     for scenario_path in scenarios_to_run:
@@ -219,7 +199,7 @@ async def main():
         findings.append(result)
 
     # -- Summary --
-    heading("COMPARISON SUMMARY")
+    heading("SUMMARY")
     for f in findings:
         print(f"  {f['scenario_name']} (variant={f['variant']}):")
         print(f"    Coverage: {f['coverage_status']}")

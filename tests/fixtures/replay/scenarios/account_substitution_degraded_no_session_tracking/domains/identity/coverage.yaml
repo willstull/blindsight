@@ -1,0 +1,9 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: partial
+  quality_flags:
+  - session_tracking_unavailable
+  notes: Session correlation unavailable
+notes: Session tracking unavailable; stale-session and device signals absent

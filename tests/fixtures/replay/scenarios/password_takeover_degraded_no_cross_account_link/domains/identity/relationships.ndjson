@@ -1,0 +1,7 @@
+{"id":"rel_c01","tlp":"GREEN","domain":"identity","relationship_type":"authenticated_as","from_entity_id":"session_c01","to_entity_id":"principal_cgarcia","first_seen":"2026-03-01T09:00:00Z"}
+{"id":"rel_c02","tlp":"GREEN","domain":"identity","relationship_type":"authenticated_as","from_entity_id":"session_c02","to_entity_id":"principal_mgarcia","first_seen":"2026-03-15T02:35:00Z"}
+{"id":"rel_c03","tlp":"GREEN","domain":"identity","relationship_type":"has_credential","from_entity_id":"principal_cgarcia","to_entity_id":"credential_cgarcia_pw","first_seen":"2026-03-01T09:00:00Z"}
+{"id":"rel_c04","tlp":"GREEN","domain":"identity","relationship_type":"has_credential","from_entity_id":"principal_mgarcia","to_entity_id":"credential_mgarcia_pw","first_seen":"2026-03-15T02:32:00Z"}
+{"id":"rel_c06","tlp":"GREEN","domain":"identity","relationship_type":"uses_device","from_entity_id":"session_c01","to_entity_id":"device_c01","first_seen":"2026-03-01T09:00:00Z"}
+{"id":"rel_c07","tlp":"GREEN","domain":"identity","relationship_type":"uses_device","from_entity_id":"session_c02","to_entity_id":"device_c02","first_seen":"2026-03-15T02:35:00Z"}
+{"id":"rel_c08","tlp":"GREEN","domain":"identity","relationship_type":"deleted_by","from_entity_id":"principal_dlopez","to_entity_id":"principal_mgarcia","first_seen":"2026-03-15T02:40:00Z"}

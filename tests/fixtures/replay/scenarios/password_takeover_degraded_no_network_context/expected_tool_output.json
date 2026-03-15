@@ -1,0 +1,39 @@
+{
+  "scenario_name": "password_takeover_degraded_no_network_context",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z",
+        "actions": [
+          "credential.*",
+          "privilege.*",
+          "auth.account.*"
+        ]
+      },
+      "expected": {
+        "status": "partial",
+        "event_count": 3,
+        "event_ids": [
+          "evt_c010",
+          "evt_c012",
+          "evt_c013"
+        ],
+        "coverage_overall_status": "partial"
+      }
+    },
+    {
+      "tool": "describe_coverage",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z"
+      },
+      "expected": {
+        "status": "partial",
+        "coverage_overall_status": "partial",
+        "source_count": 2
+      }
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"id":"resource_financial_system","tlp":"GREEN","entity_type":"resource","kind":"application","display_name":"Financial System","refs":[{"ref_type":"resource_id","system":"app_audit","value":"res_financial_system"}]}

@@ -1,0 +1,5 @@
+{"id":"rel_b04","tlp":"GREEN","domain":"identity","relationship_type":"has_credential","from_entity_id":"principal_mreyes","to_entity_id":"credential_mreyes_pw","first_seen":"2026-03-01T09:00:00Z"}
+{"id":"rel_b05","tlp":"GREEN","domain":"identity","relationship_type":"has_credential","from_entity_id":"principal_garcia_carlos","to_entity_id":"credential_garcia_carlos_pw","first_seen":"2026-03-03T14:30:00Z"}
+{"id":"rel_b06","tlp":"GREEN","domain":"identity","relationship_type":"has_credential","from_entity_id":"principal_jef_greenfield","to_entity_id":"credential_jef_greenfield_mfa","first_seen":"2026-03-25T10:05:00Z"}
+{"id":"rel_b10","tlp":"GREEN","domain":"identity","relationship_type":"created_by","from_entity_id":"principal_garcia_carlos","to_entity_id":"principal_mreyes","first_seen":"2026-03-03T14:30:00Z"}
+{"id":"rel_b11","tlp":"GREEN","domain":"identity","relationship_type":"deleted_by","from_entity_id":"principal_jeff_greenfield","to_entity_id":"principal_garcia_carlos","first_seen":"2026-03-25T03:14:00Z"}

@@ -1,0 +1,11 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: partial
+  quality_flags:
+  - credential_audit_missing
+  notes: Credential change audit logs unavailable
+- source_name: network_flow
+  status: complete
+notes: Credential audit logs missing; cross-account password change invisible

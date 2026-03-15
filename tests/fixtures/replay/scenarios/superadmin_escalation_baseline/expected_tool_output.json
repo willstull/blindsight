@@ -1,0 +1,81 @@
+{
+  "scenario_name": "superadmin_escalation_baseline",
+  "tool_calls": [
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z",
+        "actions": [
+          "privilege.grant"
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "event_count": 3,
+        "event_ids": [
+          "evt_d011",
+          "evt_d012",
+          "evt_d013"
+        ],
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "search_events",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z",
+        "actions": [
+          "auth.account.create"
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "event_count": 1,
+        "event_ids": [
+          "evt_d010"
+        ],
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_entity",
+      "args": {
+        "entity_id": "principal_kwilson"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 1,
+        "entity_ids": [
+          "principal_kwilson"
+        ],
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "get_neighbors",
+      "args": {
+        "entity_id": "principal_rchen_ops"
+      },
+      "expected": {
+        "status": "success",
+        "entity_count": 3,
+        "relationship_count": 3,
+        "coverage_overall_status": "complete"
+      }
+    },
+    {
+      "tool": "describe_coverage",
+      "args": {
+        "time_range_start": "2026-03-01T00:00:00Z",
+        "time_range_end": "2026-03-31T23:59:59Z"
+      },
+      "expected": {
+        "status": "success",
+        "coverage_overall_status": "complete",
+        "source_count": 1
+      }
+    }
+  ]
+}

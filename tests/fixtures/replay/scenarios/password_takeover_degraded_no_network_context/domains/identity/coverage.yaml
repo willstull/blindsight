@@ -1,0 +1,9 @@
+domain: identity
+overall_status: partial
+sources:
+- source_name: okta
+  status: complete
+- source_name: network_flow
+  status: missing
+  notes: Network flow data unavailable
+notes: Network flow data missing; IP and geolocation context unavailable
