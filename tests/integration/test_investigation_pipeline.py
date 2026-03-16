@@ -173,7 +173,7 @@ class TestCrossScenarioFocal:
         assert report.confidence_limit == 0.95
 
     async def test_account_substitution_baseline(self):
-        """Account substitution: multiple focal, non-trivial likelihood."""
+        """Account substitution: garcia_carlos as primary, multiple focal, high likelihood."""
         report = await run_investigation(
             FIXTURES_DIR / "account_substitution_baseline",
             _logger(),
@@ -181,6 +181,17 @@ class TestCrossScenarioFocal:
         assert report.confidence_limit == 0.95
         assert len(report.focal_principals) > 1, (
             f"Expected multiple focal principals, got: {report.focal_principals}"
+        )
+        # Question names garcia.carlos and mreyes -- both should be focal
+        assert "principal_garcia_carlos" in report.focal_principals, (
+            f"garcia_carlos should be focal, got: {report.focal_principals}"
+        )
+        assert "principal_mreyes" in report.focal_principals, (
+            f"mreyes should be focal, got: {report.focal_principals}"
+        )
+        # garcia_carlos has the most evidence activity (creates, deletes, grants)
+        assert report.focal_primary == "principal_garcia_carlos", (
+            f"Expected garcia_carlos as primary focal, got: {report.focal_primary}"
         )
         # Must not be the neutral fallback (0.5) or the old broken value (0.35)
         assert report.likelihood_score != 0.5, (
@@ -194,6 +205,10 @@ class TestCrossScenarioFocal:
         assert report.likelihood_score > 0.6, (
             f"Account substitution baseline should have supporting evidence, "
             f"got likelihood {report.likelihood_score}"
+        )
+        # Hypothesis should reflect the account manipulation pattern
+        assert "manipulation" in report.hypothesis.lower(), (
+            f"Expected account manipulation hypothesis, got: {report.hypothesis}"
         )
 
     async def test_superadmin_escalation_baseline(self):

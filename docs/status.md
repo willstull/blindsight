@@ -8,11 +8,9 @@
 - Analytic types: EvidenceItem, Claim, Hypothesis, Assumption in core types; ingest functions for each
 - 4 replay scenario families (16 scenarios): credential_change, account_substitution, password_takeover, superadmin_escalation
 - Demo scripts: demo_local.py (deterministic), demo_agent.py (LLM-driven via MCP), shared investigation logic
-- 137 tests passing
+- Milestone 5: Investigation MCP server -- orchestration layer calling identity + case servers via MCP subprocess
 
 ## Doing
-
-- Milestone 5: Investigation MCP server -- orchestration layer calling identity + case servers via MCP subprocess
 
 ## Blocked
 

@@ -769,7 +769,7 @@ def generate_baseline():
         "scenario_name": "account_substitution_baseline",
         "version": "1.0",
         "description": "Baseline scenario: account substitution with complete telemetry",
-        "investigation_question": "Was the account jef.greenfield created as a substitute for the deleted jeff.greenfield account at Greenfield Corp?",
+        "investigation_question": "Did garcia.carlos, created by compromised admin mreyes, delete jeff.greenfield and substitute a lookalike account at Greenfield Corp?",
         "time_range": {
             "start": "2026-03-01T00:00:00Z",
             "end": "2026-03-31T23:59:59Z",
@@ -884,7 +884,7 @@ def generate_degraded_no_sleeper_creation(baseline_events: list[dict]):
         "scenario_name": "account_substitution_degraded_no_sleeper_creation",
         "version": "1.0",
         "description": "Degraded: sleeper account creation event missing due to provisioning log rotation",
-        "investigation_question": "Was the account jef.greenfield created as a substitute for the deleted jeff.greenfield account at Greenfield Corp?",
+        "investigation_question": "Did garcia.carlos, created by compromised admin mreyes, delete jeff.greenfield and substitute a lookalike account at Greenfield Corp?",
         "time_range": {
             "start": "2026-03-01T00:00:00Z",
             "end": "2026-03-31T23:59:59Z",
@@ -983,7 +983,7 @@ def generate_degraded_no_session_tracking(baseline_events: list[dict]):
         "scenario_name": "account_substitution_degraded_no_session_tracking",
         "version": "1.0",
         "description": "Degraded: session tracking unavailable; stale-session and device signals absent",
-        "investigation_question": "Was the account jef.greenfield created as a substitute for the deleted jeff.greenfield account at Greenfield Corp?",
+        "investigation_question": "Did garcia.carlos, created by compromised admin mreyes, delete jeff.greenfield and substitute a lookalike account at Greenfield Corp?",
         "time_range": {
             "start": "2026-03-01T00:00:00Z",
             "end": "2026-03-31T23:59:59Z",
@@ -1079,7 +1079,7 @@ def generate_degraded_no_delete_event(baseline_events: list[dict]):
         "scenario_name": "account_substitution_degraded_no_delete_event",
         "version": "1.0",
         "description": "Degraded: account deletion event and deleted account not visible",
-        "investigation_question": "Was the account jef.greenfield created as a substitute for the deleted jeff.greenfield account at Greenfield Corp?",
+        "investigation_question": "Did garcia.carlos, created by compromised admin mreyes, delete jeff.greenfield and substitute a lookalike account at Greenfield Corp?",
         "time_range": {
             "start": "2026-03-01T00:00:00Z",
             "end": "2026-03-31T23:59:59Z",

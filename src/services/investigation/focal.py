@@ -201,25 +201,42 @@ def _match_question(question: str, principals: list[dict]) -> list[str]:
     question_lower = question.lower()
 
     for p in principals:
+        if p["id"] in matches:
+            continue
+
         display = p.get("display_name", "")
+
         # Check display_name (e.g., "alice@example.com")
         if display and display.lower() in question_lower:
             matches.append(p["id"])
             continue
 
+        # Check local part of email display names (before @)
+        if display and "@" in display:
+            local_part = display.split("@")[0].lower()
+            if len(local_part) >= 4 and local_part in question_lower:
+                matches.append(p["id"])
+                continue
+
         # Check email-like patterns in refs
+        ref_matched = False
         for ref in p.get("refs", []):
             val = ref.get("value", "")
             if val and val.lower() in question_lower:
                 matches.append(p["id"])
+                ref_matched = True
                 break
+        if ref_matched:
+            continue
 
-        # Check if the principal ID (without prefix) appears in question
-        # e.g., "principal_alice" -> "alice"
+        # Check if the principal ID (without prefix) appears in question.
+        # Try both exact and with underscores/dots normalized, since
+        # questions may use "garcia.carlos" while IDs use "garcia_carlos".
         short_name = p["id"].removeprefix("principal_")
-        # Only match if the short name is at least 4 chars (avoid false positives)
-        if len(short_name) >= 4 and short_name.lower() in question_lower:
-            if p["id"] not in matches:
+        if len(short_name) >= 4:
+            short_lower = short_name.lower()
+            dotted = short_lower.replace("_", ".")
+            if short_lower in question_lower or dotted in question_lower:
                 matches.append(p["id"])
 
     return matches

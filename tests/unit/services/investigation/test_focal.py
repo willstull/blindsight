@@ -193,3 +193,48 @@ class TestResolveFocalPrincipals:
 
         assert "principal_mgarcia" in result.focal_ids
         assert "principal_cgarcia" in result.focal_ids
+
+    def test_question_matches_email_local_part(self):
+        """Question containing 'garcia.carlos' matches display_name local part."""
+        principals = [
+            _principal("principal_garcia_carlos", "garcia.carlos@greenfield-corp.example"),
+            _principal("principal_mreyes", "mreyes@greenfield-corp.example"),
+        ]
+        events = [_event("auth.account.create", "principal_mreyes", ["principal_garcia_carlos"])]
+
+        result = resolve_focal_principals(
+            "Did garcia.carlos delete the account?", None, principals, events, [],
+        )
+
+        assert "principal_garcia_carlos" in result.focal_ids
+
+    def test_question_matches_dot_normalized_id(self):
+        """Question with dots matches principal ID that uses underscores."""
+        principals = [
+            _principal("principal_jeff_greenfield", "jeff.greenfield@example.com"),
+        ]
+        events = [_event("auth.account.delete", "principal_other", ["principal_jeff_greenfield"])]
+
+        result = resolve_focal_principals(
+            "Was jeff.greenfield deleted?", None, principals, events, [],
+        )
+
+        assert "principal_jeff_greenfield" in result.focal_ids
+
+    def test_question_dot_normalization_does_not_false_match(self):
+        """Short names under 4 chars are not matched to avoid false positives."""
+        principals = [
+            _principal("principal_al", "al@example.com"),
+        ]
+        events = [_event("auth.login", "principal_al", [])]
+
+        result = resolve_focal_principals(
+            "Was the alarm triggered?", None, principals, events, [],
+        )
+
+        # "al" is only 2 chars, should not match substring "al" in "alarm"
+        # The principal is still focal via actor activity, but not via question match
+        assert result.primary_id is None or result.primary_id == "principal_al"
+        # Key check: rationale should not mention question match
+        question_rationale = [r for r in result.rationale if "Question" in r]
+        assert not question_rationale
