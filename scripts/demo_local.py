@@ -27,9 +27,10 @@ from src.services.case.ingest import (
     ingest_evidence_items, ingest_claims, ingest_hypotheses,
 )
 from src.services.case.json_helpers import from_json
+from src.services.investigation.focal import FocalResult
 from src.services.investigation.scoring import (
     build_evidence_items as _build_evidence_items_raw,
-    build_claims as _build_claims,
+    build_claims as _build_claims_raw,
     build_hypothesis as _build_hypothesis_raw,
 )
 from src.types.core import TimeRange
@@ -40,10 +41,11 @@ def _build_evidence_items(cred_events, cov_envelope, manifest):
 
 
 def _build_hypothesis(claims, cov_envelope, manifest, cred_events, evidence_prefixes):
-    return _build_hypothesis_raw(
+    hyp, _scored_claims = _build_hypothesis_raw(
         claims, cov_envelope, manifest.get("question", "IQ-unknown"),
         cred_events, evidence_prefixes,
     )
+    return hyp
 
 
 async def run_analysis(scenario_path: Path) -> dict:
@@ -79,9 +81,19 @@ async def run_analysis(scenario_path: Path) -> dict:
 
         # -- Step 9: Build claims --
         step("9. Build claims from correlations")
-        claims = _build_claims(
-            inv["cred_events"], inv["source_ips"], subject_id,
-            evidence_items, cov_envelope, manifest["time_range"],
+        focal = FocalResult(
+            focal_ids=[subject_id],
+            primary_id=subject_id,
+            confidence=1.0,
+            rationale=["Bridge: demo_local subject selection"],
+        )
+        # Collect all events for IP analysis (cred_events + background)
+        all_events_for_scoring = inv.get("all_case_events", inv["cred_events"])
+        # Collect relationships from neighbor envelope
+        rels = inv.get("neighbor_envelope", {}).get("relationships", [])
+        claims = _build_claims_raw(
+            inv["cred_events"], all_events_for_scoring, focal,
+            evidence_items, cov_envelope, manifest["time_range"], rels,
         )
         result = ingest_claims(logger, conn, claims)
         assert result.is_ok()

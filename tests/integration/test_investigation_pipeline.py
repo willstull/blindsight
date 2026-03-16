@@ -148,3 +148,109 @@ class TestInvestigationPipeline:
             assert len(results) >= 8, (
                 f"Expected at least 8 recorded tool calls, got {len(results)}: {recorded_tools}"
             )
+
+
+class TestCrossScenarioFocal:
+    """Verify focal resolution and scoring across scenario families.
+
+    These tests assert on likelihood values to catch regressions where
+    multi-signal scenarios collapse to a flat 0.5 (the neutral fallback).
+    """
+
+    async def test_credential_change_focal_is_alice(self):
+        """Credential change baseline: alice is primary, high likelihood."""
+        report = await run_investigation(
+            FIXTURES_DIR / "credential_change_baseline",
+            _logger(),
+        )
+        assert report.focal_primary == "principal_alice"
+        assert "principal_alice" in report.focal_principals
+        # Self-directed + single IP => legitimate self-service, high likelihood
+        assert report.likelihood_score > 0.7, (
+            f"Credential change baseline should have high likelihood, "
+            f"got {report.likelihood_score}"
+        )
+        assert report.confidence_limit == 0.95
+
+    async def test_account_substitution_baseline(self):
+        """Account substitution: multiple focal, non-trivial likelihood."""
+        report = await run_investigation(
+            FIXTURES_DIR / "account_substitution_baseline",
+            _logger(),
+        )
+        assert report.confidence_limit == 0.95
+        assert len(report.focal_principals) > 1, (
+            f"Expected multiple focal principals, got: {report.focal_principals}"
+        )
+        # Must not be the neutral fallback (0.5) or the old broken value (0.35)
+        assert report.likelihood_score != 0.5, (
+            "Likelihood 0.5 means pattern classification produced no polarity rules "
+            "(neutral fallback) -- multi-signal scenarios should be scored"
+        )
+        assert report.likelihood_score != 0.35, (
+            "Likelihood 0.35 is the old single-subject broken value"
+        )
+        # Account substitution has lifecycle + cross-actor: should classify and score
+        assert report.likelihood_score > 0.6, (
+            f"Account substitution baseline should have supporting evidence, "
+            f"got likelihood {report.likelihood_score}"
+        )
+
+    async def test_superadmin_escalation_baseline(self):
+        """Superadmin escalation: privilege pattern, non-trivial likelihood."""
+        report = await run_investigation(
+            FIXTURES_DIR / "superadmin_escalation_baseline",
+            _logger(),
+        )
+        assert report.confidence_limit == 0.95
+        assert len(report.focal_principals) > 0
+        # Privilege escalation has self-grants + cross-actor: should classify and score
+        assert report.likelihood_score != 0.5, (
+            "Likelihood 0.5 means pattern classification produced no polarity rules "
+            f"-- got hypothesis: {report.hypothesis}"
+        )
+        assert report.likelihood_score > 0.6, (
+            f"Superadmin escalation baseline should have supporting evidence, "
+            f"got likelihood {report.likelihood_score}"
+        )
+
+    async def test_focal_not_collapsed_account_substitution(self):
+        """Account substitution focal should contain multiple principals."""
+        report = await run_investigation(
+            FIXTURES_DIR / "account_substitution_baseline",
+            _logger(),
+        )
+        assert len(report.focal_principals) > 1, (
+            f"Focal should not be collapsed to single principal: {report.focal_principals}"
+        )
+
+    async def test_password_takeover_baseline(self):
+        """Password takeover: credential takeover hypothesis, non-trivial likelihood."""
+        report = await run_investigation(
+            FIXTURES_DIR / "password_takeover_baseline",
+            _logger(),
+        )
+        assert report.confidence_limit == 0.95
+        assert len(report.focal_principals) > 0
+        # Cross-account credential reset: should classify as credential takeover
+        assert report.likelihood_score != 0.5, (
+            "Likelihood 0.5 means pattern classification produced no polarity rules "
+            f"-- got hypothesis: {report.hypothesis}"
+        )
+        assert report.likelihood_score > 0.6, (
+            f"Password takeover baseline should have supporting evidence, "
+            f"got likelihood {report.likelihood_score}"
+        )
+        # Hypothesis should reference credential takeover, not account manipulation
+        assert "credential takeover" in report.hypothesis.lower(), (
+            f"Password takeover baseline should produce a credential takeover "
+            f"hypothesis, got: {report.hypothesis}"
+        )
+
+    async def test_degraded_retention_gap_lower_confidence(self):
+        """Degraded retention gap should have lower confidence."""
+        report = await run_investigation(
+            FIXTURES_DIR / "credential_change_degraded_retention_gap",
+            _logger(),
+        )
+        assert report.confidence_limit < 0.95

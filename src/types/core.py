@@ -110,6 +110,7 @@ class Claim(BaseModel):
     statement: str
     polarity: str  # supports | contradicts | neutral
     confidence: float  # 0-1
+    category: str = "uncategorized"
     backed_by_evidence_ids: list[str] = Field(default_factory=list)
     subject_entity_ids: Optional[list[str]] = None
     time_range: Optional[TimeRange] = None
@@ -162,3 +163,5 @@ class InvestigationReport(BaseModel):
     case_id: Optional[str] = None
     total_events_evaluated: int = 0
     tool_calls_used: int = 0
+    focal_principals: list[str] = Field(default_factory=list)
+    focal_primary: Optional[str] = None

@@ -8,6 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from src.services.investigation.focal import resolve_focal_principals
 from src.services.investigation.mcp_client import open_mcp_session, call_tool
 from src.services.investigation.scoring import (
     build_evidence_items,
@@ -90,6 +91,19 @@ def _error_report(scenario_name: str, question: str, message: str) -> Investigat
         likelihood_score=0.0,
         confidence_limit=0.0,
     )
+
+
+def _dedup_by_id(items: list[dict]) -> list[dict]:
+    """Deduplicate dicts by their 'id' field, preserving order."""
+    seen: set[str] = set()
+    result = []
+    for item in items:
+        item_id = item.get("id", "")
+        if item_id and item_id in seen:
+            continue
+        seen.add(item_id)
+        result.append(item)
+    return result
 
 
 async def run_investigation(
@@ -260,10 +274,6 @@ async def run_investigation(
                 tool_calls_used=tool_call_count,
             )
 
-        subject = principals[0]
-        subject_id = subject["id"]
-        step3.key_findings.append(f"Subject: {subject.get('display_name', subject_id)}")
-
         # Ingest principals into case
         if _check_budget():
             await call_tool(case_session, "ingest_records", {
@@ -272,30 +282,45 @@ async def run_investigation(
             }, logger)
             tool_call_count += 1
 
-        # -- Step 4: Map relationships --
-        step4 = InvestigationStep(stage="Map relationships", description="Traverse entity relationships")
-        if not _check_budget():
-            return _error_report(scenario_name, question, "Tool call budget exhausted")
-
-        neighbor_envelope = await _call_and_record(
-            id_session, case_session, "get_neighbors", {
-                "entity_id": subject_id,
-            }, logger, case_id, "identity",
+        # -- Step 4: Map relationships for ALL principals --
+        step4 = InvestigationStep(
+            stage="Map relationships",
+            description="Traverse entity relationships for all principals",
         )
-        tool_call_count += 1
-        step4.tool_calls.append("get_neighbors")
+        all_relationships: list[dict] = []
+        all_neighbor_entities: list[dict] = []
 
-        relationships = neighbor_envelope.get("relationships", [])
-        entities = neighbor_envelope.get("entities", [])
-        step4.key_findings.append(f"{len(relationships)} relationship(s), {len(entities)} related entity(ies)")
-        steps.append(step4)
+        for principal in principals:
+            if not _check_budget():
+                break
 
-        if _check_budget():
-            await call_tool(case_session, "ingest_records", {
-                "case_id": case_id,
-                "domain_response": neighbor_envelope,
-            }, logger)
+            neighbor_envelope = await _call_and_record(
+                id_session, case_session, "get_neighbors", {
+                    "entity_id": principal["id"],
+                }, logger, case_id, "identity",
+            )
             tool_call_count += 1
+            step4.tool_calls.append("get_neighbors")
+
+            all_relationships.extend(neighbor_envelope.get("relationships", []))
+            all_neighbor_entities.extend(neighbor_envelope.get("entities", []))
+
+            if _check_budget():
+                await call_tool(case_session, "ingest_records", {
+                    "case_id": case_id,
+                    "domain_response": neighbor_envelope,
+                }, logger)
+                tool_call_count += 1
+
+        # Deduplicate
+        all_relationships = _dedup_by_id(all_relationships)
+        all_neighbor_entities = _dedup_by_id(all_neighbor_entities)
+
+        step4.key_findings.append(
+            f"{len(all_relationships)} relationship(s), "
+            f"{len(all_neighbor_entities)} related entity(ies)"
+        )
+        steps.append(step4)
 
         # -- Step 5: Discover action types --
         step5 = InvestigationStep(stage="Discover action types", description="Query domain capabilities")
@@ -338,12 +363,12 @@ async def run_investigation(
         total_events_evaluated = len(all_events)
 
         # Partition: auth.login is background, everything else is evidence
-        cred_events = [e for e in all_events if e.get("action") != "auth.login"]
+        evidence_events = [e for e in all_events if e.get("action") != "auth.login"]
         background_events = [e for e in all_events if e.get("action") == "auth.login"]
 
         step6.key_findings.append(
             f"{len(all_events)} total event(s): "
-            f"{len(cred_events)} evidence, {len(background_events)} background (auth.login)"
+            f"{len(evidence_events)} evidence, {len(background_events)} background (auth.login)"
         )
 
         # Check for truncation
@@ -362,11 +387,17 @@ async def run_investigation(
             }, logger)
             tool_call_count += 1
 
+        # -- Focal resolution --
+        focal = resolve_focal_principals(
+            question, principal_hint, principals, evidence_events, all_relationships,
+        )
+        focal_ids = focal.focal_ids
+
         # -- Step 7: Narrow timeline --
         step7 = InvestigationStep(stage="Build timeline", description="Narrow window around evidence events")
 
-        if cred_events and _check_budget():
-            sorted_events = sorted(cred_events, key=lambda e: e.get("ts", ""))
+        if evidence_events and _check_budget():
+            sorted_events = sorted(evidence_events, key=lambda e: e.get("ts", ""))
             first_ts = sorted_events[0]["ts"]
             last_ts = sorted_events[-1]["ts"]
             narrow_start = first_ts[:10] + "T00:00:00Z"
@@ -406,65 +437,77 @@ async def run_investigation(
 
         steps.append(step7)
 
-        # -- Step 8: Correlate from case store --
+        # -- Step 8: Correlate from case store (iterate focal principals) --
         step8 = InvestigationStep(stage="Correlate", description="Query case store for correlations")
-        source_ips: set[str] = set()
 
-        if _check_budget():
-            case_events_result = await _call_and_record(
-                case_session, case_session, "query_events_tool", {
-                    "case_id": case_id,
-                    "actor_entity_id": subject_id,
-                }, logger, case_id, "case",
-            )
-            tool_call_count += 1
-            step8.tool_calls.append("query_events_tool")
+        for fid in focal_ids:
+            if _check_budget():
+                case_events_result = await _call_and_record(
+                    case_session, case_session, "query_events_tool", {
+                        "case_id": case_id,
+                        "actor_entity_id": fid,
+                    }, logger, case_id, "case",
+                )
+                tool_call_count += 1
+                step8.tool_calls.append("query_events_tool")
 
-            for evt in case_events_result.get("events", []):
-                ctx = evt.get("context") or {}
-                if ctx.get("source_ip"):
-                    source_ips.add(ctx["source_ip"])
-            step8.key_findings.append(f"Source IPs: {sorted(source_ips) or '(none)'}")
+                source_ips: set[str] = set()
+                for evt in case_events_result.get("events", []):
+                    ctx = evt.get("context") or {}
+                    if ctx.get("source_ip"):
+                        source_ips.add(ctx["source_ip"])
+                if source_ips:
+                    step8.key_findings.append(
+                        f"Source IPs for {fid}: {sorted(source_ips)}"
+                    )
 
-        if _check_budget():
-            case_neighbors_result = await _call_and_record(
-                case_session, case_session, "query_neighbors_tool", {
-                    "case_id": case_id,
-                    "entity_id": subject_id,
-                    "relationship_types": ["has_credential"],
-                }, logger, case_id, "case",
-            )
-            tool_call_count += 1
-            step8.tool_calls.append("query_neighbors_tool")
+            if _check_budget():
+                case_neighbors_result = await _call_and_record(
+                    case_session, case_session, "query_neighbors_tool", {
+                        "case_id": case_id,
+                        "entity_id": fid,
+                        "relationship_types": ["has_credential"],
+                    }, logger, case_id, "case",
+                )
+                tool_call_count += 1
+                step8.tool_calls.append("query_neighbors_tool")
 
-            creds = case_neighbors_result.get("entities", [])
-            step8.key_findings.append(f"{len(creds)} credential(s) linked")
+                creds = case_neighbors_result.get("entities", [])
+                if creds:
+                    step8.key_findings.append(
+                        f"{len(creds)} credential(s) linked to {fid}"
+                    )
 
         steps.append(step8)
 
         # -- Step 9: Score --
         step9 = InvestigationStep(stage="Score", description="Build evidence items, claims, and hypothesis")
 
-        evidence_items = build_evidence_items(cred_events, cov_envelope, time_range)
+        evidence_items = build_evidence_items(evidence_events, cov_envelope, time_range)
         claims = build_claims(
-            cred_events, source_ips, subject_id,
-            evidence_items, cov_envelope, time_range,
+            evidence_events, all_events, focal,
+            evidence_items, cov_envelope, time_range, all_relationships,
         )
-        hyp = build_hypothesis(
+        hyp, scored_claims = build_hypothesis(
             claims, cov_envelope, question,
-            cred_events, evidence_prefixes,
+            evidence_events, evidence_prefixes,
         )
 
         step9.key_findings.append(f"Likelihood: {hyp.likelihood_score}")
         step9.key_findings.append(f"Confidence limit: {hyp.confidence_limit}")
-        step9.key_findings.append(f"{len(claims)} claim(s), {len(evidence_items)} evidence item(s)")
+        step9.key_findings.append(f"{len(scored_claims)} claim(s), {len(evidence_items)} evidence item(s)")
+        step9.key_findings.append(f"Focal principals: {focal_ids}")
+        if focal.primary_id:
+            step9.key_findings.append(f"Primary focal: {focal.primary_id}")
         steps.append(step9)
 
         # -- Step 10: Narrative --
+        # Use scored_claims (with polarity assigned) so narrative and LLM
+        # prompts see the correct supports/contradicts polarities.
         if use_llm:
-            narrative = await _llm_narrative(hyp, claims, cov_envelope, question, llm_model)
+            narrative = await _llm_narrative(hyp, scored_claims, cov_envelope, question, llm_model)
         else:
-            narrative = build_narrative(hyp, claims, cov_envelope)
+            narrative = build_narrative(hyp, scored_claims, cov_envelope)
 
         # Merge coverage gaps with truncation gaps
         all_gaps = gaps + narrative.get("gaps", [])
@@ -487,6 +530,8 @@ async def run_investigation(
             case_id=case_id,
             total_events_evaluated=total_events_evaluated,
             tool_calls_used=tool_call_count,
+            focal_principals=focal_ids,
+            focal_primary=focal.primary_id,
         )
 
 
