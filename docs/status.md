@@ -10,6 +10,7 @@
 - Demo scripts: demo_local.py (deterministic), demo_agent.py (LLM-driven via MCP), shared investigation logic
 - Milestone 5: Investigation MCP server -- orchestration layer calling identity + case servers via MCP subprocess
 - Investigation pivots and evidence aggregation: 5 pivot tools, 4 aggregation categories, pipeline saves default pivots
+- Follow-up query tools: 6 tools (list_cases, get_case_timeline, query_case_events, query_case_entities, query_case_neighbors, get_case_tool_call_history) proxying to case server via MCP subprocess, filesystem-backed discovery (ADR-0008)
 
 ## Doing
 
