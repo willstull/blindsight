@@ -10,7 +10,6 @@ Stable interfaces and invariants:
 - [Replay Dataset Contract](spec/replay-dataset-contract.md) - Replay dataset format
 - [Integration Interface](spec/integration-interface.md) - Domain integration boundary
 - [Case Store Schema](spec/case-store-schema.md) - DuckDB tables
-- [Case MCP Tool Contract](spec/case-mcp-tool-contract.md) - Case server pivot tools
 - [Investigation MCP Tool Contract](spec/investigation-mcp-tool-contract.md) - Investigation server tools
 
 ### Implementation

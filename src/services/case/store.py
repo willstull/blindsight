@@ -10,7 +10,7 @@ from src.services.case.json_helpers import to_json, from_json
 from src.types.result import Result, Ok, Err
 from src.utils.ulid import generate_ulid
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 1
 
 # Paths where ensure_schema has already succeeded, skipping redundant migration checks.
 _verified_paths: set[str] = set()
@@ -201,30 +201,6 @@ VALUES (1, 'Initial schema: 11 tables', CURRENT_TIMESTAMP);
 """
 
 
-MIGRATION_002 = """
-CREATE TABLE IF NOT EXISTS investigation_pivots (
-    id VARCHAR PRIMARY KEY,
-    case_id VARCHAR NOT NULL,
-    label VARCHAR NOT NULL,
-    description TEXT,
-    event_ids JSON NOT NULL,
-    entity_ids JSON NOT NULL,
-    relationship_ids JSON NOT NULL,
-    focal_entity_ids JSON,
-    time_range_start TIMESTAMP,
-    time_range_end TIMESTAMP,
-    coverage_report_ids JSON,
-    created_from_tool_call_ids JSON,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_pivots_case ON investigation_pivots(case_id);
-CREATE INDEX IF NOT EXISTS idx_pivots_created ON investigation_pivots(created_at);
-
-INSERT INTO schema_migrations (version, description, applied_at)
-VALUES (2, 'Add investigation_pivots table', CURRENT_TIMESTAMP);
-"""
-
-
 def ensure_schema(logger: logging.Logger, conn: duckdb.DuckDBPyConnection) -> Result[int, Exception]:
     """Check schema_migrations and apply pending migrations. Returns current version."""
     try:
@@ -243,11 +219,6 @@ def ensure_schema(logger: logging.Logger, conn: duckdb.DuckDBPyConnection) -> Re
             logger.info("Applying migration v001", extra={"from_version": current_version})
             conn.execute(MIGRATION_001)
             current_version = 1
-
-        if current_version < 2:
-            logger.info("Applying migration v002", extra={"from_version": current_version})
-            conn.execute(MIGRATION_002)
-            current_version = 2
 
         return Ok(current_version)
     except Exception as e:

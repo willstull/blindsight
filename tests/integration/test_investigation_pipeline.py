@@ -7,15 +7,12 @@ import json
 import logging
 import os
 import tempfile
-from pathlib import Path
 
-import duckdb
 import pytest
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-from src.services.case.json_helpers import from_json
 from src.services.investigation.mcp_client import open_mcp_session, call_tool
 from src.services.investigation.pipeline import run_investigation
 from tests.conftest import FIXTURES_DIR
@@ -274,59 +271,3 @@ class TestCrossScenarioFocal:
         assert report.confidence_limit < 0.95
 
 
-class TestPipelinePivots:
-    async def test_baseline_saves_pivots(self):
-        """Pipeline saves evidence_search_result and supporting_evidence pivots."""
-        logger = _logger()
-        cases_dir = tempfile.mkdtemp(prefix="blindsight_test_pivots_")
-        scenario_path = FIXTURES_DIR / "credential_change_baseline"
-
-        report = await run_investigation(
-            scenario_path, logger, cases_dir=cases_dir,
-        )
-        assert report.case_id is not None
-
-        # Open the case DB directly to inspect pivots
-        db_path = Path(cases_dir) / f"{report.case_id}.duckdb"
-        assert db_path.exists()
-        conn = duckdb.connect(str(db_path))
-        try:
-            rows = conn.execute(
-                "SELECT * FROM investigation_pivots WHERE case_id = ? ORDER BY created_at",
-                [report.case_id],
-            ).fetchall()
-            columns = [desc[0] for desc in conn.description]
-            pivots = [dict(zip(columns, row)) for row in rows]
-
-            # Find by label, not by row position
-            evidence_pivot = None
-            supporting_pivot = None
-            for p in pivots:
-                if p["label"] == "evidence_search_result":
-                    evidence_pivot = p
-                elif p["label"] == "supporting_evidence_for_hypothesis":
-                    supporting_pivot = p
-
-            # evidence_search_result pivot
-            assert evidence_pivot is not None, (
-                f"Missing evidence_search_result pivot. Labels found: "
-                f"{[p['label'] for p in pivots]}"
-            )
-            evidence_event_ids = from_json(evidence_pivot["event_ids"])
-            evidence_entity_ids = from_json(evidence_pivot["entity_ids"])
-            focal_entity_ids = from_json(evidence_pivot["focal_entity_ids"])
-            assert len(evidence_event_ids) > 0
-            assert len(evidence_entity_ids) > 0
-            assert evidence_pivot["time_range_start"] is not None
-            assert evidence_pivot["time_range_end"] is not None
-            # Focal should include the scenario's focal principals
-            assert "principal_alice" in (focal_entity_ids or []), (
-                f"Expected principal_alice in focal, got: {focal_entity_ids}"
-            )
-
-            # supporting_evidence_for_hypothesis pivot (may be absent if no supporting claims)
-            if supporting_pivot is not None:
-                supporting_event_ids = from_json(supporting_pivot["event_ids"])
-                assert len(supporting_event_ids) > 0
-        finally:
-            conn.close()

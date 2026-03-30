@@ -514,57 +514,6 @@ async def run_investigation(
             )
         steps.append(step9)
 
-        # -- Save default pivots (best-effort, non-fatal) --
-        focal_ids_set = set(focal_ids)
-        try:
-            # Pivot 1: evidence_search_result
-            evidence_event_ids = [e.get("id", "") for e in evidence_events if e.get("id")]
-            focal_rels = [
-                r["id"] for r in all_relationships
-                if r.get("from_entity_id") in focal_ids_set
-                or r.get("to_entity_id") in focal_ids_set
-            ]
-            if evidence_event_ids and _check_budget():
-                await _call_and_record(
-                    case_session, case_session, "save_investigation_pivot_tool", {
-                        "case_id": case_id,
-                        "label": "evidence_search_result",
-                        "event_ids": evidence_event_ids,
-                        "entity_ids": sorted(focal_ids_set),
-                        "relationship_ids": focal_rels,
-                        "focal_entity_ids": focal_ids,
-                        "description": "Evidence events and focal entities from investigation",
-                    }, logger, case_id, "case",
-                )
-                tool_call_count += 1
-
-            # Pivot 2: supporting_evidence_for_hypothesis
-            supporting_event_ids: set[str] = set()
-            evidence_item_by_id = {ei.id: ei for ei in evidence_items}
-            for c in scored_claims:
-                if c.polarity != "supports":
-                    continue
-                for ei_id in c.backed_by_evidence_ids:
-                    ei = evidence_item_by_id.get(ei_id)
-                    if ei:
-                        supporting_event_ids.update(ei.related_event_ids)
-
-            if supporting_event_ids and _check_budget():
-                await _call_and_record(
-                    case_session, case_session, "save_investigation_pivot_tool", {
-                        "case_id": case_id,
-                        "label": "supporting_evidence_for_hypothesis",
-                        "event_ids": sorted(supporting_event_ids),
-                        "entity_ids": sorted(focal_ids_set),
-                        "relationship_ids": [],
-                        "focal_entity_ids": focal_ids,
-                        "description": f"Events backing supporting claims for: {hyp.statement}",
-                    }, logger, case_id, "case",
-                )
-                tool_call_count += 1
-        except Exception:
-            logger.warning("Failed to save default pivots")
-
         # -- Step 10: Narrative --
         # Use scored_claims (with polarity assigned) so narrative and LLM
         # prompts see the correct supports/contradicts polarities.
