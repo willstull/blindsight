@@ -5,9 +5,11 @@ work across all scenario families (credential_change, password_takeover,
 superadmin_escalation, account_substitution).
 """
 from src.services.investigation.focal import FocalResult
+from src.services.investigation.resolution import build_target_to_principal_map
 from src.types.core import (
     Claim, EvidenceItem, Hypothesis, Ref, TimeRange,
 )
+from src.utils.time import within_minutes
 from src.utils.ulid import generate_ulid
 
 
@@ -33,6 +35,12 @@ PRIVILEGE_FAILED = "privilege_failed"
 TEMPORAL_CLUSTER = "temporal_cluster"
 FAILED_OUTCOME = "failed_outcome"
 COVERAGE_GAP = "coverage_gap"
+
+# Aggregation-derived categories
+LIFECYCLE_CHAIN = "lifecycle_chain"
+SHARED_INDICATOR = "shared_indicator"
+CREDENTIAL_SEQUENCE = "credential_sequence"
+ACTION_BURST = "action_burst"
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +105,7 @@ def build_claims(
     cov_envelope: dict,
     time_range: TimeRange,
     relationships: list[dict],
+    aggregated_facts: list | None = None,
 ) -> list[Claim]:
     """Create Claim objects from evidence patterns.
 
@@ -109,7 +118,7 @@ def build_claims(
     focal_ids = set(focal.focal_ids)
 
     # Build target-to-principal map for resolving credential/session targets
-    target_to_principal = _build_target_to_principal_map(relationships, focal_ids)
+    target_to_principal = build_target_to_principal_map(relationships, focal_ids)
 
     claims: list[Claim] = []
 
@@ -138,29 +147,13 @@ def build_claims(
         cov_envelope, evidence_ids, time_range,
     ))
 
+    if aggregated_facts:
+        claims.extend(_claims_from_aggregated_facts(
+            aggregated_facts, evidence_items, time_range,
+        ))
+
     return claims
 
-
-def _build_target_to_principal_map(
-    relationships: list[dict],
-    principal_ids: set[str],
-) -> dict[str, str]:
-    """Map non-principal entity IDs to owning principals via relationships."""
-    target_to_principal: dict[str, str] = {}
-    ownership_types = {"has_credential", "authenticated_as", "uses_device"}
-
-    for rel in relationships:
-        rel_type = rel.get("relationship_type", "")
-        from_id = rel.get("from_entity_id", "")
-        to_id = rel.get("to_entity_id", "")
-
-        if rel_type in ownership_types:
-            if from_id in principal_ids and to_id not in principal_ids:
-                target_to_principal[to_id] = from_id
-            elif to_id in principal_ids and from_id not in principal_ids:
-                target_to_principal[from_id] = to_id
-
-    return target_to_principal
 
 
 def _resolve_target_principals(
@@ -552,7 +545,7 @@ def _claims_temporal_clustering(
     for evt in sorted_events[1:]:
         prev_ts = cluster[-1].get("ts", "")
         curr_ts = evt.get("ts", "")
-        if _within_minutes(prev_ts, curr_ts, 10):
+        if within_minutes(prev_ts, curr_ts, 10):
             cluster.append(evt)
         else:
             if len(cluster) >= 3:
@@ -564,16 +557,6 @@ def _claims_temporal_clustering(
 
     return claims
 
-
-def _within_minutes(ts1: str, ts2: str, minutes: int) -> bool:
-    """Check if two ISO timestamps are within N minutes of each other."""
-    try:
-        from datetime import datetime, timezone
-        t1 = datetime.fromisoformat(ts1.replace("Z", "+00:00"))
-        t2 = datetime.fromisoformat(ts2.replace("Z", "+00:00"))
-        return abs((t2 - t1).total_seconds()) <= minutes * 60
-    except (ValueError, TypeError):
-        return False
 
 
 def _make_cluster_claim(
@@ -648,6 +631,44 @@ def _claims_coverage(
         backed_by_evidence_ids=[evidence_ids[-1]] if evidence_ids else [],
         time_range=time_range,
     )]
+
+
+def _claims_from_aggregated_facts(
+    aggregated_facts: list,
+    evidence_items: list[EvidenceItem],
+    time_range: TimeRange,
+) -> list[Claim]:
+    """Convert EvidenceFacts into Claims with precise evidence backing."""
+    # Build event_id -> set[evidence_item_id] mapping
+    event_to_evidence: dict[str, set[str]] = {}
+    for ei in evidence_items:
+        for evt_id in ei.related_event_ids:
+            event_to_evidence.setdefault(evt_id, set()).add(ei.id)
+
+    claims = []
+    for fact in aggregated_facts:
+        # Collect only the evidence items whose events overlap with this fact
+        backed_by: set[str] = set()
+        for evt_id in fact.event_ids:
+            backed_by.update(event_to_evidence.get(evt_id, set()))
+
+        # Fall back to all evidence if no overlap found
+        if not backed_by:
+            backed_by = {ei.id for ei in evidence_items}
+
+        claims.append(Claim(
+            id=generate_ulid(),
+            tlp="AMBER",
+            statement=fact.summary,
+            polarity="neutral",
+            confidence=fact.confidence,
+            category=fact.fact_type,
+            backed_by_evidence_ids=sorted(backed_by),
+            subject_entity_ids=fact.entity_ids,
+            time_range=time_range,
+        ))
+
+    return claims
 
 
 # ---------------------------------------------------------------------------
@@ -744,6 +765,10 @@ _POLARITY_RULES: dict[str, dict[str, str]] = {
         LIFECYCLE_DELETE: "supports",
         FAILED_OUTCOME: "supports",
         TEMPORAL_CLUSTER: "supports",
+        LIFECYCLE_CHAIN: "supports",
+        SHARED_INDICATOR: "supports",
+        CREDENTIAL_SEQUENCE: "supports",
+        ACTION_BURST: "supports",
         SELF_DIRECTED: "contradicts",
         SELF_CREDENTIAL: "contradicts",
     },
@@ -753,6 +778,8 @@ _POLARITY_RULES: dict[str, dict[str, str]] = {
         LIFECYCLE_DISABLE: "supports",
         CROSS_ACTOR: "supports",
         TEMPORAL_CLUSTER: "supports",
+        LIFECYCLE_CHAIN: "supports",
+        ACTION_BURST: "supports",
         SELF_DIRECTED: "contradicts",
     },
     "privilege_escalation": {
@@ -761,11 +788,14 @@ _POLARITY_RULES: dict[str, dict[str, str]] = {
         PRIVILEGE_FAILED: "supports",
         CROSS_ACTOR: "supports",
         TEMPORAL_CLUSTER: "supports",
+        ACTION_BURST: "supports",
     },
     "coordinated_cross_account": {
         CROSS_ACTOR: "supports",
         SHARED_IP: "supports",
         TEMPORAL_CLUSTER: "supports",
+        SHARED_INDICATOR: "supports",
+        ACTION_BURST: "supports",
         SELF_DIRECTED: "contradicts",
     },
     "cross_account": {
@@ -897,6 +927,10 @@ _NEXT_STEPS_BY_CATEGORY: list[tuple[str, str]] = [
     (TEMPORAL_CLUSTER, "Review rapid action sequences for automation indicators"),
     (FAILED_OUTCOME, "Investigate failed actions for brute-force or policy blocks"),
     (CROSS_ACCOUNT_CREDENTIAL, "Investigate cross-account credential changes for takeover indicators"),
+    (LIFECYCLE_CHAIN, "Review account lifecycle chain for coordinated manipulation"),
+    (SHARED_INDICATOR, "Investigate shared network indicators across actors"),
+    (CREDENTIAL_SEQUENCE, "Trace credential abuse sequence end-to-end"),
+    (ACTION_BURST, "Review burst of repeated actions for automation or attack tooling"),
 ]
 
 

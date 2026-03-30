@@ -9,14 +9,14 @@ from src.types.result import Result, Ok, Err
 
 # JSON columns per table that need from_json() parsing
 _ENTITY_JSON_COLS = ("refs", "attributes")
-_EVENT_JSON_COLS = ("actor", "targets", "raw_refs", "context", "related_entity_ids")
+EVENT_JSON_COLS = ("actor", "targets", "raw_refs", "context", "related_entity_ids")
 _RELATIONSHIP_JSON_COLS = ("evidence_refs",)
 _TOOL_CALL_JSON_COLS = ("request_params", "response_body")
 
 MAX_LIMIT = 2000
 
 
-def _rows_to_dicts(conn: duckdb.DuckDBPyConnection, rows: list, json_cols: tuple) -> list[dict]:
+def rows_to_dicts(conn: duckdb.DuckDBPyConnection, rows: list, json_cols: tuple) -> list[dict]:
     """Convert raw rows to dicts, parsing JSON columns and stringifying timestamps."""
     columns = [desc[0] for desc in conn.description]
     results = []
@@ -66,7 +66,7 @@ def query_entities(
 
         sql = f"SELECT * FROM entities {where} ORDER BY display_name LIMIT ?"
         rows = conn.execute(sql, params).fetchall()
-        return Ok(_rows_to_dicts(conn, rows, _ENTITY_JSON_COLS))
+        return Ok(rows_to_dicts(conn, rows, _ENTITY_JSON_COLS))
     except Exception as e:
         logger.error("Entity query failed", extra={"error": str(e)})
         return Err(e)
@@ -136,7 +136,7 @@ def query_events(
 
         sql = f"SELECT * FROM events {where} ORDER BY ts DESC LIMIT ?"
         rows = conn.execute(sql, params).fetchall()
-        return Ok(_rows_to_dicts(conn, rows, _EVENT_JSON_COLS))
+        return Ok(rows_to_dicts(conn, rows, EVENT_JSON_COLS))
     except Exception as e:
         logger.error("Event query failed", extra={"error": str(e)})
         return Err(e)
@@ -224,7 +224,7 @@ def get_timeline(
 
         sql = f"SELECT * FROM events {where} ORDER BY ts ASC LIMIT ?"
         rows = conn.execute(sql, params).fetchall()
-        return Ok(_rows_to_dicts(conn, rows, _EVENT_JSON_COLS))
+        return Ok(rows_to_dicts(conn, rows, EVENT_JSON_COLS))
     except Exception as e:
         logger.error("Timeline query failed", extra={"error": str(e)})
         return Err(e)
@@ -243,7 +243,7 @@ def get_tool_call_history(
             "SELECT * FROM tool_calls WHERE case_id = ? ORDER BY executed_at DESC LIMIT ?",
             [case_id, effective_limit],
         ).fetchall()
-        return Ok(_rows_to_dicts(conn, rows, _TOOL_CALL_JSON_COLS))
+        return Ok(rows_to_dicts(conn, rows, _TOOL_CALL_JSON_COLS))
     except Exception as e:
         logger.error("Tool call history query failed", extra={"error": str(e)})
         return Err(e)

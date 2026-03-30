@@ -2,6 +2,7 @@
 import pytest
 
 from src.services.investigation.focal import FocalResult
+from src.services.investigation.aggregation import EvidenceFact
 from src.services.investigation.scoring import (
     build_claims,
     build_hypothesis,
@@ -15,6 +16,9 @@ from src.services.investigation.scoring import (
     IP_SHIFT,
     LIFECYCLE_CREATE,
     LIFECYCLE_DELETE,
+    LIFECYCLE_CHAIN,
+    CREDENTIAL_SEQUENCE,
+    ACTION_BURST,
     PRIVILEGE_SELF_GRANT,
     PRIVILEGE_GRANT,
     PRIVILEGE_FAILED,
@@ -449,3 +453,96 @@ class TestCategoryFieldPresent:
             f"Found uncategorized claims: "
             f"{[(c.statement, c.category) for c in uncategorized]}"
         )
+
+
+class TestAggregatedFactsClaims:
+    """Verify aggregated facts produce supporting claims via build_claims."""
+
+    def _make_fact(self, fact_type, summary="test", event_ids=None, entity_ids=None):
+        return EvidenceFact(
+            fact_type=fact_type,
+            summary=summary,
+            event_ids=event_ids or ["evt-1"],
+            entity_ids=entity_ids or ["principal_a"],
+            time_range_start="2026-01-10T10:00:00Z",
+            time_range_end="2026-01-10T10:05:00Z",
+            confidence=0.85,
+        )
+
+    def test_lifecycle_chain_supports_account_manipulation(self):
+        """lifecycle_chain fact produces supporting claim in account_manipulation."""
+        events = [
+            _event("auth.account.create", "principal_a", ["principal_b"],
+                   ts="2026-01-10T10:00:00Z"),
+            _event("auth.account.delete", "principal_a", ["principal_c"],
+                   ts="2026-01-10T10:05:00Z"),
+        ]
+        focal = _focal(["principal_a", "principal_b"])
+        cov = _cov_envelope("complete")
+        evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
+        fact = self._make_fact(
+            "lifecycle_chain",
+            "principal_a performed delete + create within 5 minutes",
+            event_ids=[e["id"] for e in events],
+            entity_ids=["principal_a", "principal_b", "principal_c"],
+        )
+        claims = build_claims(
+            events, events, focal, evidence_items, cov, _TIME_RANGE, [],
+            aggregated_facts=[fact],
+        )
+        hyp, scored = build_hypothesis(claims, cov, "investigation", events, [])
+
+        chain_claims = [c for c in scored if c.category == LIFECYCLE_CHAIN]
+        assert len(chain_claims) == 1
+        assert chain_claims[0].polarity == "supports"
+
+    def test_credential_sequence_supports_credential_takeover(self):
+        """credential_sequence fact produces supporting claim in credential_takeover."""
+        events = [
+            _event("credential.reset", "principal_cgarcia", ["credential_mgarcia_pw"],
+                   ts="2026-03-15T02:32:00Z", source_ip="203.0.113.42"),
+        ]
+        rels = [
+            _relationship("has_credential", "principal_mgarcia", "credential_mgarcia_pw"),
+        ]
+        focal = _focal(["principal_cgarcia", "principal_mgarcia"])
+        cov = _cov_envelope("complete")
+        evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
+        fact = self._make_fact(
+            "credential_sequence",
+            "principal_cgarcia reset credential for principal_mgarcia",
+            event_ids=[e["id"] for e in events],
+            entity_ids=["principal_cgarcia", "principal_mgarcia"],
+        )
+        claims = build_claims(
+            events, events, focal, evidence_items, cov, _TIME_RANGE, rels,
+            aggregated_facts=[fact],
+        )
+        hyp, scored = build_hypothesis(claims, cov, "investigation", events, [])
+
+        seq_claims = [c for c in scored if c.category == CREDENTIAL_SEQUENCE]
+        assert len(seq_claims) == 1
+        assert seq_claims[0].polarity == "supports"
+
+    def test_unknown_fact_type_stays_neutral(self):
+        """An unrecognized fact_type produces a claim with no polarity rule match."""
+        events = [
+            _event("auth.login", "principal_alice", [],
+                   ts="2026-01-15T10:00:00Z", source_ip="198.51.100.10"),
+        ]
+        focal = _focal(["principal_alice"], "principal_alice")
+        cov = _cov_envelope("complete")
+        evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
+        fact = self._make_fact(
+            "unknown_aggregation_type",
+            "Some unknown aggregation",
+        )
+        claims = build_claims(
+            events, events, focal, evidence_items, cov, _TIME_RANGE, [],
+            aggregated_facts=[fact],
+        )
+        hyp, scored = build_hypothesis(claims, cov, "question", events, [])
+
+        unknown_claims = [c for c in scored if c.category == "unknown_aggregation_type"]
+        assert len(unknown_claims) == 1
+        assert unknown_claims[0].polarity == "neutral"

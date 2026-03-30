@@ -7,6 +7,8 @@ and optional hints.
 import re
 from pydantic import BaseModel, Field
 
+from src.services.investigation.resolution import build_target_to_principal_map
+
 
 class FocalResult(BaseModel):
     focal_ids: list[str] = Field(default_factory=list)
@@ -41,7 +43,7 @@ def resolve_focal_principals(
     rationale: list[str] = []
 
     # Build target-to-principal mapping from relationships
-    target_to_principal = _build_target_to_principal_map(relationships, principal_by_id)
+    target_to_principal = build_target_to_principal_map(relationships, set(principal_by_id.keys()))
 
     # Step 1: Hint match
     if principal_hint:
@@ -147,35 +149,6 @@ def resolve_focal_principals(
         rationale=rationale,
     )
 
-
-def _build_target_to_principal_map(
-    relationships: list[dict],
-    principal_by_id: dict[str, dict],
-) -> dict[str, str]:
-    """Map non-principal entity IDs to owning principals via relationships.
-
-    Handles has_credential, authenticated_as, uses_device, etc.
-    """
-    target_to_principal: dict[str, str] = {}
-    ownership_types = {
-        "has_credential", "authenticated_as", "uses_device",
-        "created_by", "deleted_by",
-    }
-
-    for rel in relationships:
-        rel_type = rel.get("relationship_type", "")
-        from_id = rel.get("from_entity_id", "")
-        to_id = rel.get("to_entity_id", "")
-
-        if rel_type in ownership_types:
-            # For has_credential: from=principal, to=credential
-            if from_id in principal_by_id and to_id not in principal_by_id:
-                target_to_principal[to_id] = from_id
-            # For authenticated_as: from=session, to=principal
-            elif to_id in principal_by_id and from_id not in principal_by_id:
-                target_to_principal[from_id] = to_id
-
-    return target_to_principal
 
 
 def _match_hint(hint: str, principals: list[dict]) -> str | None:

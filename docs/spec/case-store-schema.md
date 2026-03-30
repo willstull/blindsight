@@ -239,6 +239,31 @@ CREATE INDEX idx_tool_calls_request ON tool_calls(request_id);
 CREATE INDEX idx_tool_calls_executed ON tool_calls(executed_at);
 ```
 
+### investigation_pivots
+
+Named evidence slices for revisiting investigation conclusions.
+
+```sql
+CREATE TABLE investigation_pivots (
+    id VARCHAR PRIMARY KEY,
+    case_id VARCHAR NOT NULL,
+    label VARCHAR NOT NULL,            -- e.g. 'evidence_search_result', 'supporting_evidence_for_hypothesis'
+    description TEXT,
+    event_ids JSON NOT NULL,           -- Array of event IDs
+    entity_ids JSON NOT NULL,          -- Array of entity IDs
+    relationship_ids JSON NOT NULL,    -- Array of relationship IDs
+    focal_entity_ids JSON,             -- Array of focal principal IDs
+    time_range_start TIMESTAMP,        -- Computed from event timestamps
+    time_range_end TIMESTAMP,          -- Computed from event timestamps
+    coverage_report_ids JSON,          -- Array of coverage report IDs
+    created_from_tool_call_ids JSON,   -- Array of tool call IDs (audit trail)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_pivots_case ON investigation_pivots(case_id);
+CREATE INDEX idx_pivots_created ON investigation_pivots(created_at);
+```
+
 ## Correlation Query Examples
 
 ### Get entity neighbors via relationships
