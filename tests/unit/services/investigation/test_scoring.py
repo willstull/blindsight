@@ -7,6 +7,11 @@ from src.services.investigation.scoring import (
     build_claims,
     build_hypothesis,
     build_evidence_items,
+    extract_coverage_gaps,
+    fallback_gap_assessments,
+    score_and_classify,
+    score_confidence_from_gaps,
+    score_likelihood,
     SELF_DIRECTED,
     CROSS_ACTOR,
     CROSS_ACCOUNT_CREDENTIAL,
@@ -26,7 +31,7 @@ from src.services.investigation.scoring import (
     FAILED_OUTCOME,
     COVERAGE_GAP,
 )
-from src.types.core import TimeRange
+from src.types.core import CoverageObservation, GapAssessment, TimeRange
 
 
 _TIME_RANGE = TimeRange(start="2026-01-01T00:00:00Z", end="2026-01-31T23:59:59Z")
@@ -107,6 +112,19 @@ def _categories(claims):
     return {c.category for c in claims}
 
 
+def _score_and_build(claims, question, events, gap_assessments=None):
+    """Helper: score_and_classify + build_hypothesis in one call."""
+    sr = score_and_classify(claims, events, question)
+    confidence = score_confidence_from_gaps(gap_assessments or [])
+    hyp = build_hypothesis(
+        scoring_result=sr,
+        confidence=confidence,
+        gap_assessments=gap_assessments or [],
+        investigation_question=question,
+    )
+    return hyp, sr.scored_claims
+
+
 class TestSelfDirectedCredentialChange:
     def test_self_directed_produces_claim(self):
         """Alice resets her own credential -- self-directed claim."""
@@ -137,10 +155,10 @@ class TestSelfDirectedCredentialChange:
         cov = _cov_envelope("complete")
         evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
         claims = build_claims(events, events, focal, evidence_items, cov, _TIME_RANGE, rels)
-        hyp, _scored = build_hypothesis(claims, cov, "Did alice change creds?", events, [])
+        hyp, _scored = _score_and_build(claims, "Did alice change creds?", events)
 
-        assert hyp.likelihood_score > 0.7
-        assert hyp.confidence_limit == 0.95
+        assert hyp.likelihood == "high"
+        assert hyp.confidence == "high"
 
 
 class TestCrossActorActivity:
@@ -272,8 +290,12 @@ class TestDegradedCoverage:
         assert len(cov_claims) >= 1
         assert cov_claims[0].polarity == "neutral"
 
-        hyp, _scored = build_hypothesis(claims, cov, "question", events, [])
-        assert hyp.confidence_limit == 0.6
+        # With partial coverage and no LLM, fallback_gap_assessments produces
+        # relevant gaps -> confidence "medium"
+        gaps = extract_coverage_gaps(cov, [])
+        gap_assessments = fallback_gap_assessments(gaps)
+        hyp, _scored = _score_and_build(claims, "question", events, gap_assessments)
+        assert hyp.confidence == "medium"
 
 
 class TestNoEvidenceEvents:
@@ -283,9 +305,9 @@ class TestNoEvidenceEvents:
         cov = _cov_envelope("complete")
         evidence_items = build_evidence_items([], cov, _TIME_RANGE)
         claims = build_claims([], [], focal, evidence_items, cov, _TIME_RANGE, [])
-        hyp, _scored = build_hypothesis(claims, cov, "question", [], [])
+        hyp, _scored = _score_and_build(claims, "question", [])
 
-        assert hyp.likelihood_score <= 0.5
+        assert hyp.likelihood == "low"
 
 
 class TestHypothesisPatternClassification:
@@ -301,14 +323,13 @@ class TestHypothesisPatternClassification:
         cov = _cov_envelope("complete")
         evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
         claims = build_claims(events, events, focal, evidence_items, cov, _TIME_RANGE, [])
-        hyp, _scored = build_hypothesis(claims, cov, "investigation", events, [])
+        hyp, _scored = _score_and_build(claims, "investigation", events)
 
         assert "self-service" not in hyp.statement.lower()
         assert any(word in hyp.statement.lower() for word in [
             "manipulation", "account", "cross-account",
         ])
-        assert hyp.likelihood_score != 0.5
-        assert hyp.likelihood_score > 0.6
+        assert hyp.likelihood == "high"
 
     def test_privilege_escalation_pattern(self):
         """Self-grant claim => privilege escalation hypothesis."""
@@ -320,14 +341,13 @@ class TestHypothesisPatternClassification:
         cov = _cov_envelope("complete")
         evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
         claims = build_claims(events, events, focal, evidence_items, cov, _TIME_RANGE, [])
-        hyp, _scored = build_hypothesis(claims, cov, "investigation", events, [])
+        hyp, _scored = _score_and_build(claims, "investigation", events)
 
         assert "escalation" in hyp.statement.lower()
-        assert hyp.likelihood_score != 0.5
-        assert hyp.likelihood_score > 0.6
+        assert hyp.likelihood == "high"
 
-    def test_build_hypothesis_returns_polarity_assigned_claims(self):
-        """build_hypothesis returns claims with polarity set, not all neutral."""
+    def test_score_and_classify_returns_polarity_assigned_claims(self):
+        """score_and_classify returns claims with polarity set, not all neutral."""
         events = [
             _event("credential.reset", "principal_alice", ["credential_alice_pw"],
                    source_ip="198.51.100.10"),
@@ -340,16 +360,16 @@ class TestHypothesisPatternClassification:
 
         assert all(c.polarity == "neutral" for c in claims)
 
-        hyp, scored_claims = build_hypothesis(claims, cov, "question", events, [])
+        sr = score_and_classify(claims, events, "question")
 
-        polarities = {c.polarity for c in scored_claims}
+        polarities = {c.polarity for c in sr.scored_claims}
         assert "supports" in polarities, (
             f"Expected some supporting claims in scored output, got: "
-            f"{[(c.category, c.polarity) for c in scored_claims]}"
+            f"{[(c.category, c.polarity) for c in sr.scored_claims]}"
         )
 
     def test_multi_signal_not_neutral_fallback(self):
-        """Scenario with lifecycle + privilege + cross-actor should not fall to 0.5."""
+        """Scenario with lifecycle + privilege + cross-actor should score high."""
         events = [
             _event("auth.account.create", "principal_kwilson", ["principal_rchen_ops"],
                    ts="2026-03-10T09:00:00Z", source_ip="198.51.100.10"),
@@ -362,14 +382,13 @@ class TestHypothesisPatternClassification:
         cov = _cov_envelope("complete")
         evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
         claims = build_claims(events, events, focal, evidence_items, cov, _TIME_RANGE, [])
-        hyp, scored = build_hypothesis(claims, cov, "investigation", events, [])
+        hyp, scored = _score_and_build(claims, "investigation", events)
 
-        assert hyp.likelihood_score != 0.5, (
-            f"Multi-signal scenario collapsed to neutral 0.5. "
+        assert hyp.likelihood == "high", (
+            f"Multi-signal scenario should be high. "
             f"Hypothesis: {hyp.statement}. "
             f"Categories: {[(c.category, c.polarity) for c in scored]}"
         )
-        assert hyp.likelihood_score > 0.6
 
     def test_credential_takeover_pattern(self):
         """Cross-account credential reset + cross-actor => credential takeover."""
@@ -386,13 +405,12 @@ class TestHypothesisPatternClassification:
         cov = _cov_envelope("complete")
         evidence_items = build_evidence_items(events, cov, _TIME_RANGE)
         claims = build_claims(events, events, focal, evidence_items, cov, _TIME_RANGE, rels)
-        hyp, scored = build_hypothesis(claims, cov, "investigation", events, [])
+        hyp, scored = _score_and_build(claims, "investigation", events)
 
         assert "credential takeover" in hyp.statement.lower(), (
             f"Expected credential takeover hypothesis, got: {hyp.statement}"
         )
-        assert hyp.likelihood_score > 0.7
-        assert hyp.likelihood_score != 0.5
+        assert hyp.likelihood == "high"
 
 
 class TestCredentialTargeting:
@@ -490,7 +508,7 @@ class TestAggregatedFactsClaims:
             events, events, focal, evidence_items, cov, _TIME_RANGE, [],
             aggregated_facts=[fact],
         )
-        hyp, scored = build_hypothesis(claims, cov, "investigation", events, [])
+        hyp, scored = _score_and_build(claims, "investigation", events)
 
         chain_claims = [c for c in scored if c.category == LIFECYCLE_CHAIN]
         assert len(chain_claims) == 1
@@ -518,7 +536,7 @@ class TestAggregatedFactsClaims:
             events, events, focal, evidence_items, cov, _TIME_RANGE, rels,
             aggregated_facts=[fact],
         )
-        hyp, scored = build_hypothesis(claims, cov, "investigation", events, [])
+        hyp, scored = _score_and_build(claims, "investigation", events)
 
         seq_claims = [c for c in scored if c.category == CREDENTIAL_SEQUENCE]
         assert len(seq_claims) == 1
@@ -541,8 +559,204 @@ class TestAggregatedFactsClaims:
             events, events, focal, evidence_items, cov, _TIME_RANGE, [],
             aggregated_facts=[fact],
         )
-        hyp, scored = build_hypothesis(claims, cov, "question", events, [])
+        hyp, scored = _score_and_build(claims, "question", events)
 
         unknown_claims = [c for c in scored if c.category == "unknown_aggregation_type"]
         assert len(unknown_claims) == 1
         assert unknown_claims[0].polarity == "neutral"
+
+
+# ---------------------------------------------------------------------------
+# New tests for band scoring and gap assessment
+# ---------------------------------------------------------------------------
+
+
+class TestLikelihoodBandMapping:
+    """Test score_likelihood() directly with various claim sets."""
+
+    def _claim(self, polarity="supports", confidence=0.85, category="test"):
+        from src.types.core import Claim
+        return Claim(
+            id="test",
+            tlp="AMBER",
+            statement="test",
+            polarity=polarity,
+            confidence=confidence,
+            category=category,
+        )
+
+    def test_all_supporting_high_confidence(self):
+        claims = [self._claim("supports", 0.9), self._claim("supports", 0.85)]
+        assert score_likelihood(claims, [{"id": "e1"}]) == "high"
+
+    def test_mixed_support_contradiction(self):
+        claims = [self._claim("supports", 0.5), self._claim("contradicts", 0.5)]
+        assert score_likelihood(claims, [{"id": "e1"}]) == "medium"
+
+    def test_only_contradicting(self):
+        claims = [self._claim("contradicts", 0.3)]
+        assert score_likelihood(claims, [{"id": "e1"}]) == "low"
+
+    def test_no_claims_no_events(self):
+        assert score_likelihood([], []) == "low"
+
+    def test_no_claims_some_events(self):
+        assert score_likelihood([], [{"id": "e1"}]) == "medium"
+
+    def test_weak_supporting(self):
+        claims = [self._claim("supports", 0.55)]
+        assert score_likelihood(claims, [{"id": "e1"}]) == "medium"
+
+
+class TestConfidenceBandFromGaps:
+    """Test score_confidence_from_gaps() with various gap assessments."""
+
+    def _gap(self, relevance="relevant", could_change=False):
+        return GapAssessment(
+            gap_id="test", relevance=relevance,
+            could_change_conclusion=could_change, reason="test",
+        )
+
+    def test_empty_gaps(self):
+        assert score_confidence_from_gaps([]) == "high"
+
+    def test_minor_only(self):
+        assert score_confidence_from_gaps([self._gap("minor")]) == "high"
+
+    def test_irrelevant_only(self):
+        assert score_confidence_from_gaps([self._gap("irrelevant")]) == "high"
+
+    def test_relevant_gap(self):
+        assert score_confidence_from_gaps([self._gap("relevant")]) == "medium"
+
+    def test_critical_could_not_change(self):
+        assert score_confidence_from_gaps([self._gap("critical", False)]) == "medium"
+
+    def test_critical_could_change(self):
+        assert score_confidence_from_gaps([self._gap("critical", True)]) == "low"
+
+
+class TestFallbackGapAssessments:
+    """Test fallback_gap_assessments() with generic and real fixture notes."""
+
+    def test_missing_source(self):
+        gaps = [{"gap_id": "g1", "source_name": "idp", "status": "missing", "description": "idp is missing"}]
+        assessments = fallback_gap_assessments(gaps)
+        assert len(assessments) == 1
+        assert assessments[0].relevance == "critical"
+        assert assessments[0].could_change_conclusion is True
+
+    def test_partial_with_retention_gap(self):
+        gaps = [{"gap_id": "g1", "source_name": "idp", "status": "partial",
+                 "description": "Retention gap: events before 2026-03-01 unavailable"}]
+        assessments = fallback_gap_assessments(gaps)
+        assert assessments[0].relevance == "critical"
+        assert assessments[0].could_change_conclusion is True
+
+    def test_partial_with_session_tracking(self):
+        gaps = [{"gap_id": "g1", "source_name": "idp", "status": "partial",
+                 "description": "No session tracking available for this tenant"}]
+        assessments = fallback_gap_assessments(gaps)
+        assert assessments[0].relevance == "critical"
+        assert assessments[0].could_change_conclusion is True
+
+    def test_partial_with_underscored_keyword(self):
+        """Normalization handles underscores in keywords."""
+        gaps = [{"gap_id": "g1", "source_name": "idp", "status": "partial",
+                 "description": "no_session_tracking in environment"}]
+        assessments = fallback_gap_assessments(gaps)
+        assert assessments[0].relevance == "critical"
+
+    def test_partial_generic(self):
+        gaps = [{"gap_id": "g1", "source_name": "idp", "status": "partial",
+                 "description": "Partial data for display_name field"}]
+        assessments = fallback_gap_assessments(gaps)
+        assert assessments[0].relevance == "relevant"
+        assert assessments[0].could_change_conclusion is False
+
+    def test_empty_gaps(self):
+        assert fallback_gap_assessments([]) == []
+
+
+class TestExtractCoverageGaps:
+    """Test extract_coverage_gaps() with coverage envelopes and observations."""
+
+    def test_complete_coverage_no_gaps(self):
+        cov = {"coverage_report": {
+            "overall_status": "complete",
+            "sources": [{"source_name": "idp", "status": "complete"}],
+        }}
+        gaps = extract_coverage_gaps(cov, [])
+        assert gaps == []
+
+    def test_partial_source(self):
+        cov = {"coverage_report": {
+            "overall_status": "partial",
+            "sources": [{"source_name": "idp", "status": "partial", "notes": "Missing MFA data"}],
+        }}
+        gaps = extract_coverage_gaps(cov, [])
+        assert len(gaps) == 1
+        assert gaps[0]["gap_id"] == "source_idp"
+
+    def test_observations_coverage_gap_included(self):
+        cov = {"coverage_report": {"overall_status": "complete", "sources": []}}
+        obs = [CoverageObservation(
+            tool_name="search_events", stage="Search",
+            observation_type="coverage_gap", description="retention gap detected",
+        )]
+        gaps = extract_coverage_gaps(cov, obs)
+        assert len(gaps) == 1
+
+    def test_observations_empty_result_excluded(self):
+        cov = {"coverage_report": {"overall_status": "complete", "sources": []}}
+        obs = [CoverageObservation(
+            tool_name="get_neighbors", stage="Correlate",
+            observation_type="empty_result", description="0 neighbors",
+            result_count=0,
+        )]
+        gaps = extract_coverage_gaps(cov, obs)
+        assert gaps == []
+
+
+class TestBuildHypothesis:
+    """Test build_hypothesis() assembly from _ScoringResult + gap assessments."""
+
+    def test_basic_construction(self):
+        sr = score_and_classify([], [], "test question")
+        hyp = build_hypothesis(
+            scoring_result=sr,
+            confidence="high",
+            gap_assessments=[],
+            investigation_question="test question",
+        )
+        assert hyp.likelihood == sr.likelihood
+        assert hyp.confidence == "high"
+        assert hyp.gap_assessments == []
+
+    def test_gap_assessments_populated(self):
+        sr = score_and_classify([], [], "test question")
+        ga = GapAssessment(
+            gap_id="g1", relevance="critical",
+            could_change_conclusion=True, reason="missing MFA",
+        )
+        hyp = build_hypothesis(
+            scoring_result=sr, confidence="low",
+            gap_assessments=[ga], investigation_question="test",
+        )
+        assert len(hyp.gap_assessments) == 1
+        assert hyp.gap_assessments[0].gap_id == "g1"
+
+    def test_gaps_derived_from_critical_and_relevant(self):
+        sr = score_and_classify([], [], "test question")
+        gas = [
+            GapAssessment(gap_id="g1", relevance="critical", could_change_conclusion=True, reason="r"),
+            GapAssessment(gap_id="g2", relevance="relevant", could_change_conclusion=False, reason="r"),
+            GapAssessment(gap_id="g3", relevance="minor", could_change_conclusion=False, reason="r"),
+        ]
+        hyp = build_hypothesis(
+            scoring_result=sr, confidence="low",
+            gap_assessments=gas, investigation_question="test",
+        )
+        assert "g1" in hyp.gaps
+        assert "g2" in hyp.gaps
+        assert "g3" not in hyp.gaps

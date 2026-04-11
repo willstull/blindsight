@@ -32,7 +32,7 @@ Run a bounded investigation against a replay scenario.
 | use_llm | boolean | no | Use LLM for narrative text (default false) |
 | llm_model | string | no | Model identifier for LLM mode |
 
-**Success response:** `InvestigationReport` dict with keys: `scenario_name`, `investigation_question`, `hypothesis`, `likelihood_score`, `confidence_limit`, `steps`, `case_id`, `tool_calls_used`, `total_events_evaluated`, etc.
+**Success response:** `InvestigationReport` dict with keys: `scenario_name`, `investigation_question`, `hypothesis`, `likelihood` (low/medium/high), `confidence` (low/medium/high), `likelihood_rationale`, `confidence_rationale`, `gap_assessments`, `steps`, `case_id`, `tool_calls_used`, `total_events_evaluated`, etc.
 
 **Error codes:** `scenario_not_found`
 

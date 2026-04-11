@@ -39,25 +39,25 @@ class TestInvestigationPipeline:
         assert report.total_events_evaluated > 0
         assert len(report.steps) > 0
         assert report.hypothesis != ""
-        assert report.likelihood_assessment != ""
-        assert report.confidence_assessment != ""
+        assert report.likelihood_rationale != ""
+        assert report.confidence_rationale != ""
 
     async def test_baseline_high_confidence(self):
-        """Baseline (complete coverage) should have high confidence limit."""
+        """Baseline (complete coverage) should have high confidence."""
         report = await run_investigation(
             FIXTURES_DIR / "credential_change_baseline",
             _logger(),
         )
-        assert report.confidence_limit == 0.95
-        assert report.likelihood_score > 0.5
+        assert report.confidence == "high"
+        assert report.likelihood == "high"
 
     async def test_degraded_lower_confidence(self):
-        """Degraded scenario should produce lower confidence limit."""
+        """Degraded scenario should produce lower confidence."""
         report = await run_investigation(
             FIXTURES_DIR / "credential_change_degraded_retention_gap",
             _logger(),
         )
-        assert report.confidence_limit < 0.95
+        assert report.confidence in ("low", "medium")
         assert report.total_events_evaluated > 0
 
     async def test_steps_include_expected_stages(self):
@@ -166,11 +166,11 @@ class TestCrossScenarioFocal:
         assert report.focal_primary == "principal_alice"
         assert "principal_alice" in report.focal_principals
         # Self-directed + single IP => legitimate self-service, high likelihood
-        assert report.likelihood_score > 0.7, (
+        assert report.likelihood == "high", (
             f"Credential change baseline should have high likelihood, "
-            f"got {report.likelihood_score}"
+            f"got {report.likelihood}"
         )
-        assert report.confidence_limit == 0.95
+        assert report.confidence == "high"
 
     async def test_account_substitution_baseline(self):
         """Account substitution: garcia_carlos as primary, multiple focal, high likelihood."""
@@ -178,7 +178,7 @@ class TestCrossScenarioFocal:
             FIXTURES_DIR / "account_substitution_baseline",
             _logger(),
         )
-        assert report.confidence_limit == 0.95
+        assert report.confidence == "high"
         assert len(report.focal_principals) > 1, (
             f"Expected multiple focal principals, got: {report.focal_principals}"
         )
@@ -193,18 +193,10 @@ class TestCrossScenarioFocal:
         assert report.focal_primary == "principal_garcia_carlos", (
             f"Expected garcia_carlos as primary focal, got: {report.focal_primary}"
         )
-        # Must not be the neutral fallback (0.5) or the old broken value (0.35)
-        assert report.likelihood_score != 0.5, (
-            "Likelihood 0.5 means pattern classification produced no polarity rules "
-            "(neutral fallback) -- multi-signal scenarios should be scored"
-        )
-        assert report.likelihood_score != 0.35, (
-            "Likelihood 0.35 is the old single-subject broken value"
-        )
         # Account substitution has lifecycle + cross-actor: should classify and score
-        assert report.likelihood_score > 0.6, (
-            f"Account substitution baseline should have supporting evidence, "
-            f"got likelihood {report.likelihood_score}"
+        assert report.likelihood == "high", (
+            f"Account substitution baseline should have high likelihood, "
+            f"got {report.likelihood}"
         )
         # Hypothesis should reflect the account manipulation pattern
         assert "manipulation" in report.hypothesis.lower(), (
@@ -217,16 +209,12 @@ class TestCrossScenarioFocal:
             FIXTURES_DIR / "superadmin_escalation_baseline",
             _logger(),
         )
-        assert report.confidence_limit == 0.95
+        assert report.confidence == "high"
         assert len(report.focal_principals) > 0
         # Privilege escalation has self-grants + cross-actor: should classify and score
-        assert report.likelihood_score != 0.5, (
-            "Likelihood 0.5 means pattern classification produced no polarity rules "
-            f"-- got hypothesis: {report.hypothesis}"
-        )
-        assert report.likelihood_score > 0.6, (
-            f"Superadmin escalation baseline should have supporting evidence, "
-            f"got likelihood {report.likelihood_score}"
+        assert report.likelihood == "high", (
+            f"Superadmin escalation baseline should have high likelihood, "
+            f"got {report.likelihood}"
         )
 
     async def test_focal_not_collapsed_account_substitution(self):
@@ -245,16 +233,12 @@ class TestCrossScenarioFocal:
             FIXTURES_DIR / "password_takeover_baseline",
             _logger(),
         )
-        assert report.confidence_limit == 0.95
+        assert report.confidence == "high"
         assert len(report.focal_principals) > 0
         # Cross-account credential reset: should classify as credential takeover
-        assert report.likelihood_score != 0.5, (
-            "Likelihood 0.5 means pattern classification produced no polarity rules "
-            f"-- got hypothesis: {report.hypothesis}"
-        )
-        assert report.likelihood_score > 0.6, (
-            f"Password takeover baseline should have supporting evidence, "
-            f"got likelihood {report.likelihood_score}"
+        assert report.likelihood == "high", (
+            f"Password takeover baseline should have high likelihood, "
+            f"got {report.likelihood}"
         )
         # Hypothesis should reference credential takeover, not account manipulation
         assert "credential takeover" in report.hypothesis.lower(), (
@@ -268,6 +252,6 @@ class TestCrossScenarioFocal:
             FIXTURES_DIR / "credential_change_degraded_retention_gap",
             _logger(),
         )
-        assert report.confidence_limit < 0.95
+        assert report.confidence in ("low", "medium")
 
 

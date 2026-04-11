@@ -109,8 +109,8 @@ async def run_analysis(scenario_path: Path) -> dict:
             inv["cred_events"], inv["evidence_prefixes"],
         )
         print(f"  Statement: {hypothesis.statement}")
-        print(f"  Likelihood score: {hypothesis.likelihood_score}")
-        print(f"  Confidence limit: {hypothesis.confidence_limit}")
+        print(f"  Likelihood: {hypothesis.likelihood}")
+        print(f"  Confidence: {hypothesis.confidence}")
         print(f"  Supporting claims: {len(hypothesis.supporting_claim_ids)}")
         if hypothesis.contradicting_claim_ids:
             print(f"  Contradicting claims: {len(hypothesis.contradicting_claim_ids)}")
@@ -134,8 +134,8 @@ async def run_analysis(scenario_path: Path) -> dict:
         cols = [d[0] for d in conn.description]
         stored = dict(zip(cols, row))
         print(f"\n  Round-trip verification:")
-        print(f"    likelihood_score: {stored['likelihood_score']}")
-        print(f"    confidence_cap:   {stored['confidence_cap']}")
+        print(f"    likelihood: {stored['likelihood']}")
+        print(f"    confidence: {stored['confidence']}")
         print(f"    status:           {stored['status']}")
         stored_claims = from_json(stored["supporting_claim_ids"])
         print(f"    supporting_claims: {len(stored_claims)}")
@@ -159,8 +159,8 @@ async def run_analysis(scenario_path: Path) -> dict:
             "hypothesis": {
                 "id": hypothesis.id,
                 "statement": hypothesis.statement,
-                "likelihood_score": hypothesis.likelihood_score,
-                "confidence_limit": hypothesis.confidence_limit,
+                "likelihood": hypothesis.likelihood,
+                "confidence": hypothesis.confidence,
                 "supporting_claims": len(hypothesis.supporting_claim_ids),
                 "gaps": len(hypothesis.gaps),
                 "next_requests": len(hypothesis.next_evidence_requests),
@@ -208,8 +208,8 @@ async def main():
             print(f"    Coverage:         {r['coverage_status']}")
             print(f"    Evidence items:   {r['evidence_count']}")
             print(f"    Claims:           {r['claim_count']}")
-            print(f"    Likelihood:       {hyp['likelihood_score']}")
-            print(f"    Confidence limit: {hyp['confidence_limit']}")
+            print(f"    Likelihood:       {hyp['likelihood']}")
+            print(f"    Confidence:       {hyp['confidence']}")
             print(f"    Gaps:             {hyp['gaps']}")
             print(f"    Next requests:    {hyp['next_requests']}")
         print()
@@ -217,7 +217,7 @@ async def main():
     heading("LOCAL DEMO COMPLETE")
     narrate(
         "Key takeaway: Structured Claim and Hypothesis objects make the\n"
-        "reasoning chain explicit and auditable. The confidence_limit\n"
+        "reasoning chain explicit and auditable. The confidence band\n"
         "drops when coverage is incomplete, even if likelihood stays\n"
         "similar -- this is what coverage-aware scoring means."
     )

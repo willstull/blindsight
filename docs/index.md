@@ -27,6 +27,7 @@ Stable interfaces and invariants:
 - [ADR-0006: MCP Tool Contracts](adr/ADR-0006-mcp-tool-contracts.md)
 - [ADR-0007: Investigation Orchestration Server](adr/ADR-0007-investigation-orchestration-server.md)
 - [ADR-0008: Investigation Follow-up Tools](adr/ADR-0008-investigation-followup-tools.md)
+- [ADR-0009: Categorical Scoring](adr/ADR-0009-categorical-scoring.md)
 
 ## Project Information
 

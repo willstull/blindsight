@@ -272,7 +272,7 @@ def _make_hypothesis(id="hyp-001"):
     return Hypothesis(
         id=id, tlp="AMBER", iq_id="IQ-001",
         statement="Credential changes are legitimate self-service activity",
-        likelihood_score=0.85, confidence_limit=0.95,
+        likelihood="high", confidence="high",
         supporting_claim_ids=["clm-001"],
         gaps=["cov-001"],
         next_evidence_requests=[
@@ -394,9 +394,8 @@ class TestIngestHypotheses:
         row = case_db.execute("SELECT * FROM hypotheses WHERE id = 'hyp-001'").fetchone()
         cols = [d[0] for d in case_db.description]
         data = dict(zip(cols, row))
-        assert data["likelihood_score"] == 0.85
-        # confidence_limit maps to confidence_cap column
-        assert data["confidence_cap"] == 0.95
+        assert data["likelihood"] == "high"
+        assert data["confidence"] == "high"
         assert data["iq_id"] == "IQ-001"
         assert data["status"] == "open"
         assert from_json(data["supporting_claim_ids"]) == ["clm-001"]
@@ -406,15 +405,15 @@ class TestIngestHypotheses:
         logger = get_test_logger()
         ingest_hypotheses(logger, case_db, [_make_hypothesis()])
         updated = _make_hypothesis()
-        updated.likelihood_score = 0.5
-        updated.confidence_limit = 0.6
+        updated.likelihood = "medium"
+        updated.confidence = "low"
         ingest_hypotheses(logger, case_db, [updated])
 
         row = case_db.execute(
-            "SELECT likelihood_score, confidence_cap FROM hypotheses WHERE id = 'hyp-001'"
+            "SELECT likelihood, confidence FROM hypotheses WHERE id = 'hyp-001'"
         ).fetchone()
-        assert row[0] == 0.5
-        assert row[1] == 0.6
+        assert row[0] == "medium"
+        assert row[1] == "low"
 
     def test_next_evidence_requests_json_roundtrip(self, case_db):
         logger = get_test_logger()

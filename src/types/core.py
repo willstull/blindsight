@@ -3,9 +3,13 @@
 Pure data structures -- no business logic.
 Timestamps are strings (RFC3339) to match NDJSON fixture format directly.
 """
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+
+ScoreBand = Literal["low", "medium", "high"]
+GapRelevance = Literal["critical", "relevant", "minor", "irrelevant"]
 
 
 class Ref(BaseModel):
@@ -92,6 +96,21 @@ class CoverageReport(BaseModel):
     notes: Optional[str] = None
 
 
+class CoverageObservation(BaseModel):
+    tool_name: str
+    stage: str
+    observation_type: Literal["empty_result", "missing_fields", "coverage_gap", "limitation"]
+    description: str
+    result_count: int | None = None
+
+
+class GapAssessment(BaseModel):
+    gap_id: str
+    relevance: GapRelevance
+    could_change_conclusion: bool
+    reason: str
+
+
 class EvidenceItem(BaseModel):
     id: str
     tlp: str
@@ -132,11 +151,12 @@ class Hypothesis(BaseModel):
     tlp: str
     iq_id: str
     statement: str
-    likelihood_score: float  # 0-1
-    confidence_limit: float  # 0-1
+    likelihood: ScoreBand
+    confidence: ScoreBand
     supporting_claim_ids: list[str] = Field(default_factory=list)
     contradicting_claim_ids: Optional[list[str]] = None
     gaps: list[str] = Field(default_factory=list)
+    gap_assessments: list[GapAssessment] = Field(default_factory=list)
     next_evidence_requests: list[dict] = Field(default_factory=list)
     status: Optional[str] = None  # open | ruled_in | ruled_out | stale
     updated_at: Optional[str] = None  # RFC3339
@@ -154,10 +174,11 @@ class InvestigationReport(BaseModel):
     investigation_question: str
     steps: list[InvestigationStep] = Field(default_factory=list)
     hypothesis: str
-    likelihood_assessment: str
-    confidence_assessment: str
-    likelihood_score: float
-    confidence_limit: float
+    likelihood_rationale: str
+    confidence_rationale: str
+    likelihood: ScoreBand
+    confidence: ScoreBand
+    gap_assessments: list[GapAssessment] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list)
     next_steps: list[str] = Field(default_factory=list)
     case_id: Optional[str] = None

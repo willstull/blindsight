@@ -4,10 +4,14 @@ Pure functions -- no I/O, no side effects. General claim builders that
 work across all scenario families (credential_change, password_takeover,
 superadmin_escalation, account_substitution).
 """
+import re
+from dataclasses import dataclass
+
 from src.services.investigation.focal import FocalResult
 from src.services.investigation.resolution import build_target_to_principal_map
 from src.types.core import (
-    Claim, EvidenceItem, Hypothesis, Ref, TimeRange,
+    Claim, CoverageObservation, EvidenceItem, GapAssessment,
+    Hypothesis, Ref, ScoreBand, TimeRange,
 )
 from src.utils.time import within_minutes
 from src.utils.ulid import generate_ulid
@@ -41,6 +45,209 @@ LIFECYCLE_CHAIN = "lifecycle_chain"
 SHARED_INDICATOR = "shared_indicator"
 CREDENTIAL_SEQUENCE = "credential_sequence"
 ACTION_BURST = "action_burst"
+
+
+# ---------------------------------------------------------------------------
+# Intermediate types
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _ScoringResult:
+    """Intermediate scoring output. Not a persisted domain object."""
+    statement: str
+    likelihood: ScoreBand
+    scored_claims: list[Claim]
+    supporting_claim_ids: list[str]
+    contradicting_claim_ids: list[str]
+
+
+@dataclass(frozen=True)
+class NarrativeResult:
+    """Typed return for narrative builders."""
+    hypothesis_text: str
+    likelihood_rationale: str
+    confidence_rationale: str
+    gaps: list[str]
+    next_steps: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Band scoring
+# ---------------------------------------------------------------------------
+
+# Thresholds calibrated from scenario score survey (2026-04-10).
+# All baselines: 0.808-0.884. Degraded: 0.633-0.900. No-evidence: 0.3-0.5.
+_LIKELIHOOD_HIGH_THRESHOLD = 0.70
+_LIKELIHOOD_MEDIUM_THRESHOLD = 0.50
+
+
+def score_likelihood(
+    scored_claims: list[Claim],
+    evidence_events: list[dict],
+) -> ScoreBand:
+    """Deterministic likelihood band from polarity-assigned claims."""
+    supporting = [c for c in scored_claims if c.polarity == "supports"]
+    contradicting = [c for c in scored_claims if c.polarity == "contradicts"]
+
+    if supporting and contradicting:
+        sup_weight = sum(c.confidence for c in supporting)
+        con_weight = sum(c.confidence for c in contradicting)
+        raw = sup_weight / (sup_weight + con_weight)
+    elif supporting:
+        raw = sum(c.confidence for c in supporting) / len(supporting)
+    elif contradicting:
+        raw = sum(c.confidence for c in contradicting) / len(contradicting)
+    elif evidence_events:
+        raw = 0.5
+    else:
+        raw = 0.3
+
+    if raw >= _LIKELIHOOD_HIGH_THRESHOLD:
+        return "high"
+    if raw >= _LIKELIHOOD_MEDIUM_THRESHOLD:
+        return "medium"
+    return "low"
+
+
+def score_confidence_from_gaps(gap_assessments: list[GapAssessment]) -> ScoreBand:
+    """Deterministic confidence band from LLM or fallback gap assessments."""
+    if not gap_assessments:
+        return "high"
+
+    for gap in gap_assessments:
+        if gap.relevance == "critical" and gap.could_change_conclusion:
+            return "low"
+
+    for gap in gap_assessments:
+        if gap.relevance in ("critical", "relevant"):
+            return "medium"
+
+    return "high"
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap extraction and fallback
+# ---------------------------------------------------------------------------
+
+# Keywords indicating a severe partial gap. Normalized before matching
+# (lowercase, underscores/hyphens replaced with spaces).
+_SEVERE_PARTIAL_KEYWORDS = [
+    "missing source",
+    "retention gap",
+    "unavailable",
+    "session tracking absent",
+    "session tracking unavailable",
+    "no data",
+    "no session tracking",
+]
+
+_NORMALIZE_RE = re.compile(r"[_\-]")
+
+
+def _normalize_gap_text(text: str) -> str:
+    """Lowercase and replace underscores/hyphens with spaces."""
+    return _NORMALIZE_RE.sub(" ", text.lower())
+
+
+def extract_coverage_gaps(
+    cov_envelope: dict,
+    observations: list[CoverageObservation],
+) -> list[dict]:
+    """Extract actual coverage gaps from coverage report and observations.
+
+    Only coverage_gap, missing_fields, and limitation observation types
+    become gaps. empty_result observations are context for the LLM, not
+    confidence-reducing gaps.
+    """
+    gaps: list[dict] = []
+    seen_ids: set[str] = set()
+
+    # Source-level gaps from coverage report
+    cov = cov_envelope.get("coverage_report", {})
+    for source in cov.get("sources", []):
+        if source["status"] != "complete":
+            gap_id = f"source_{source['source_name']}"
+            if gap_id not in seen_ids:
+                gaps.append({
+                    "gap_id": gap_id,
+                    "source_name": source["source_name"],
+                    "status": source["status"],
+                    "description": source.get("notes", f"{source['source_name']} is {source['status']}"),
+                    "missing_fields": source.get("missing_fields", []),
+                    "observed_in": "coverage_report",
+                })
+                seen_ids.add(gap_id)
+
+    # Top-level missing fields
+    if cov.get("missing_fields"):
+        gap_id = "global_missing_fields"
+        if gap_id not in seen_ids:
+            gaps.append({
+                "gap_id": gap_id,
+                "source_name": "global",
+                "status": "partial",
+                "description": f"Missing fields: {', '.join(cov['missing_fields'])}",
+                "missing_fields": cov["missing_fields"],
+                "observed_in": "coverage_report",
+            })
+            seen_ids.add(gap_id)
+
+    # Observations from tool calls (only actual gaps, not empty results)
+    for obs in observations:
+        if obs.observation_type in ("coverage_gap", "missing_fields", "limitation"):
+            gap_id = f"obs_{obs.tool_name}_{obs.stage}_{obs.observation_type}"
+            if gap_id not in seen_ids:
+                gaps.append({
+                    "gap_id": gap_id,
+                    "source_name": obs.tool_name,
+                    "status": "partial",
+                    "description": obs.description,
+                    "missing_fields": [],
+                    "observed_in": f"{obs.stage}/{obs.tool_name}",
+                })
+                seen_ids.add(gap_id)
+
+    return gaps
+
+
+def fallback_gap_assessments(coverage_gaps: list[dict]) -> list[GapAssessment]:
+    """Conservative gap assessments when LLM is unavailable.
+
+    Missing sources and severe partial indicators are classified as
+    critical with could_change_conclusion=True. Other partial gaps
+    are classified as relevant.
+    """
+    assessments: list[GapAssessment] = []
+
+    for gap in coverage_gaps:
+        status = gap.get("status", "unknown")
+        description = gap.get("description", "")
+        normalized = _normalize_gap_text(description)
+
+        if status == "missing":
+            assessments.append(GapAssessment(
+                gap_id=gap["gap_id"],
+                relevance="critical",
+                could_change_conclusion=True,
+                reason=f"Data source '{gap.get('source_name', 'unknown')}' is missing (conservative default)",
+            ))
+        elif status == "partial" and any(kw in normalized for kw in _SEVERE_PARTIAL_KEYWORDS):
+            assessments.append(GapAssessment(
+                gap_id=gap["gap_id"],
+                relevance="critical",
+                could_change_conclusion=True,
+                reason=f"Severe coverage gap: {description} (conservative default)",
+            ))
+        elif status in ("partial", "unknown"):
+            assessments.append(GapAssessment(
+                gap_id=gap["gap_id"],
+                relevance="relevant",
+                could_change_conclusion=False,
+                reason=f"Partial coverage: {description} (conservative default)",
+            ))
+
+    return assessments
 
 
 # ---------------------------------------------------------------------------
@@ -827,88 +1034,80 @@ def _assign_polarity(claims: list[Claim], pattern: str) -> list[Claim]:
     return result
 
 
-def build_hypothesis(
+def score_and_classify(
     claims: list[Claim],
-    cov_envelope: dict,
-    investigation_question: str,
     evidence_events: list[dict],
-    evidence_prefixes: list[str],
-) -> tuple[Hypothesis, list[Claim]]:
-    """Create a Hypothesis with pattern-driven scoring.
+    investigation_question: str,
+) -> _ScoringResult:
+    """Classify evidence pattern, assign polarity, and score likelihood.
 
-    Classifies the evidence pattern from claims, assigns polarity,
-    and scores mechanically.
-
-    Returns (hypothesis, polarity_assigned_claims). The second value is
-    the claims list with polarity updated -- callers should use this for
-    narrative generation and LLM prompts instead of the original neutral
-    claims.
+    Returns an intermediate _ScoringResult. The caller is responsible
+    for gap assessment and constructing the final Hypothesis via
+    build_hypothesis().
     """
-    cov = cov_envelope["coverage_report"]
-    cov_status = cov["overall_status"]
-
-    # Classify pattern and assign polarity
     pattern = _classify_pattern(claims)
     scored_claims = _assign_polarity(claims, pattern)
+
+    likelihood = score_likelihood(scored_claims, evidence_events)
 
     supporting = [c for c in scored_claims if c.polarity == "supports"]
     contradicting = [c for c in scored_claims if c.polarity == "contradicts"]
 
-    # Score mechanically
-    if supporting and contradicting:
-        sup_weight = sum(c.confidence for c in supporting)
-        con_weight = sum(c.confidence for c in contradicting)
-        likelihood = sup_weight / (sup_weight + con_weight)
-    elif supporting:
-        likelihood = sum(c.confidence for c in supporting) / len(supporting)
-    elif contradicting:
-        likelihood = sum(c.confidence for c in contradicting) / len(contradicting)
-    elif evidence_events:
-        likelihood = 0.5
-    else:
-        likelihood = 0.3
-
-    # Confidence limit from coverage
-    if cov_status == "complete":
-        confidence_limit = 0.95
-    elif cov_status == "partial":
-        confidence_limit = 0.6
-    else:
-        confidence_limit = 0.3
-
-    gaps = [cov["id"]] if cov_status != "complete" else []
-
-    next_evidence_requests = []
-    if cov_status != "complete":
-        next_evidence_requests.append({
-            "domain": "identity",
-            "tool": "search_events",
-            "params": {
-                "actions": [f"{p}*" for p in evidence_prefixes],
-            },
-            "priority": "high",
-        })
-
-    # Pattern-driven statement
     statement = _PATTERN_STATEMENTS.get(pattern)
     if not statement:
         statement = f"Assessment of: {investigation_question}"
 
-    hyp = Hypothesis(
+    return _ScoringResult(
+        statement=statement,
+        likelihood=likelihood,
+        scored_claims=scored_claims,
+        supporting_claim_ids=[c.id for c in supporting],
+        contradicting_claim_ids=[c.id for c in contradicting],
+    )
+
+
+def build_hypothesis(
+    scoring_result: _ScoringResult,
+    confidence: ScoreBand,
+    gap_assessments: list[GapAssessment],
+    investigation_question: str,
+) -> Hypothesis:
+    """Construct the final Hypothesis from scoring result and gap assessment.
+
+    Only called after gap assessment is complete. All fields are populated;
+    no partially-valid Hypothesis objects exist.
+    """
+    # Gaps: IDs of critical or relevant gap assessments
+    gaps = [
+        ga.gap_id for ga in gap_assessments
+        if ga.relevance in ("critical", "relevant")
+    ]
+
+    # Next evidence requests: suggest follow-up for critical gaps
+    next_evidence_requests = []
+    for ga in gap_assessments:
+        if ga.relevance == "critical":
+            next_evidence_requests.append({
+                "domain": "identity",
+                "gap_id": ga.gap_id,
+                "reason": ga.reason,
+                "priority": "high",
+            })
+
+    return Hypothesis(
         id=generate_ulid(),
         tlp="AMBER",
         iq_id=investigation_question,
-        statement=statement,
-        likelihood_score=round(likelihood, 3),
-        confidence_limit=round(confidence_limit, 3),
-        supporting_claim_ids=[c.id for c in supporting],
-        contradicting_claim_ids=[c.id for c in contradicting] or None,
+        statement=scoring_result.statement,
+        likelihood=scoring_result.likelihood,
+        confidence=confidence,
+        supporting_claim_ids=scoring_result.supporting_claim_ids,
+        contradicting_claim_ids=scoring_result.contradicting_claim_ids or None,
         gaps=gaps,
+        gap_assessments=gap_assessments,
         next_evidence_requests=next_evidence_requests,
         status="open",
     )
-
-    return hyp, scored_claims
 
 
 # ---------------------------------------------------------------------------
@@ -938,12 +1137,8 @@ def build_narrative(
     hypothesis: Hypothesis,
     claims: list[Claim],
     cov_envelope: dict,
-) -> dict:
-    """Build formulaic narrative text for mechanical mode.
-
-    Returns dict with: hypothesis_text, likelihood_assessment,
-    confidence_assessment, gaps, next_steps.
-    """
+) -> NarrativeResult:
+    """Build formulaic narrative text for mechanical mode."""
     cov = cov_envelope["coverage_report"]
     cov_status = cov["overall_status"]
 
@@ -953,45 +1148,54 @@ def build_narrative(
     # Hypothesis text
     hypothesis_text = hypothesis.statement
 
-    # Likelihood assessment
+    # Likelihood rationale
     if supporting and not contradicting:
-        likelihood_assessment = (
+        likelihood_rationale = (
             f"Evidence supports the hypothesis. "
             f"{len(supporting)} supporting claim(s) with average confidence "
             f"{sum(c.confidence for c in supporting) / len(supporting):.2f}."
         )
     elif supporting and contradicting:
-        likelihood_assessment = (
+        likelihood_rationale = (
             f"Mixed evidence. {len(supporting)} supporting and "
             f"{len(contradicting)} contradicting claim(s). "
             f"Likelihood reduced due to contradicting evidence."
         )
     else:
-        likelihood_assessment = (
+        likelihood_rationale = (
             "Insufficient evidence to strongly support or contradict the hypothesis."
         )
 
-    # Confidence assessment
-    if cov_status == "complete":
-        confidence_assessment = (
+    # Confidence rationale
+    if hypothesis.confidence == "high":
+        confidence_rationale = (
             "Full telemetry coverage available. "
-            "Confidence limit is high (0.95)."
+            "Confidence is high."
         )
-    elif cov_status == "partial":
-        confidence_assessment = (
-            f"Partial telemetry coverage. "
-            f"Confidence limit capped at 0.6 due to data gaps. "
-            f"Findings may be incomplete."
+    elif hypothesis.confidence == "medium":
+        confidence_rationale = (
+            "Partial telemetry coverage. "
+            "Confidence is medium due to data gaps. "
+            "Findings may be incomplete."
         )
     else:
-        confidence_assessment = (
+        confidence_rationale = (
             f"Coverage is {cov_status}. "
-            f"Confidence limit is low (0.3). "
-            f"Cannot draw reliable conclusions from available data."
+            "Confidence is low. "
+            "Cannot draw reliable conclusions from available data."
+        )
+
+    # Add gap assessment details to confidence rationale
+    critical_gaps = [ga for ga in hypothesis.gap_assessments if ga.relevance == "critical"]
+    if critical_gaps:
+        confidence_rationale += (
+            f" {len(critical_gaps)} critical gap(s): "
+            + "; ".join(ga.reason for ga in critical_gaps)
+            + "."
         )
 
     # Gaps
-    gaps = []
+    gaps: list[str] = []
     if cov_status != "complete":
         for src in cov.get("sources", []):
             if src["status"] != "complete":
@@ -1001,9 +1205,9 @@ def build_narrative(
                 gaps.append(gap_msg)
 
     # Next steps -- derived from claim categories present
-    next_steps = []
-    if cov_status != "complete":
-        next_steps.append("Obtain complete telemetry to raise confidence limit")
+    next_steps: list[str] = []
+    if hypothesis.confidence != "high":
+        next_steps.append("Obtain complete telemetry to raise confidence")
 
     present_categories = {c.category for c in claims}
     seen_steps: set[str] = set()
@@ -1015,10 +1219,10 @@ def build_narrative(
     if not next_steps:
         next_steps.append("Investigation complete with high confidence")
 
-    return {
-        "hypothesis_text": hypothesis_text,
-        "likelihood_assessment": likelihood_assessment,
-        "confidence_assessment": confidence_assessment,
-        "gaps": gaps,
-        "next_steps": next_steps,
-    }
+    return NarrativeResult(
+        hypothesis_text=hypothesis_text,
+        likelihood_rationale=likelihood_rationale,
+        confidence_rationale=confidence_rationale,
+        gaps=gaps,
+        next_steps=next_steps,
+    )

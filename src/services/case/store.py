@@ -10,7 +10,7 @@ from src.services.case.json_helpers import to_json, from_json
 from src.types.result import Result, Ok, Err
 from src.utils.ulid import generate_ulid
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 # Paths where ensure_schema has already succeeded, skipping redundant migration checks.
 _verified_paths: set[str] = set()
@@ -201,6 +201,34 @@ VALUES (1, 'Initial schema: 11 tables', CURRENT_TIMESTAMP);
 """
 
 
+MIGRATION_002 = """
+-- Replace numeric hypothesis scores with categorical bands.
+-- Existing hypothesis rows are disposable (dev/test only).
+DROP TABLE IF EXISTS hypotheses;
+CREATE TABLE hypotheses (
+    id VARCHAR PRIMARY KEY,
+    tlp VARCHAR NOT NULL,
+    iq_id VARCHAR NOT NULL,
+    statement TEXT NOT NULL,
+    likelihood VARCHAR NOT NULL,
+    confidence VARCHAR NOT NULL,
+    supporting_claim_ids JSON NOT NULL,
+    contradicting_claim_ids JSON,
+    gaps JSON NOT NULL,
+    gap_assessments JSON NOT NULL,
+    next_evidence_requests JSON NOT NULL,
+    status VARCHAR,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_hypotheses_iq ON hypotheses(iq_id);
+CREATE INDEX IF NOT EXISTS idx_hypotheses_status ON hypotheses(status);
+
+INSERT INTO schema_migrations (version, description, applied_at)
+VALUES (2, 'Replace numeric hypothesis scores with categorical bands', CURRENT_TIMESTAMP);
+"""
+
+
 def ensure_schema(logger: logging.Logger, conn: duckdb.DuckDBPyConnection) -> Result[int, Exception]:
     """Check schema_migrations and apply pending migrations. Returns current version."""
     try:
@@ -219,6 +247,11 @@ def ensure_schema(logger: logging.Logger, conn: duckdb.DuckDBPyConnection) -> Re
             logger.info("Applying migration v001", extra={"from_version": current_version})
             conn.execute(MIGRATION_001)
             current_version = 1
+
+        if current_version < 2:
+            logger.info("Applying migration v002", extra={"from_version": current_version})
+            conn.execute(MIGRATION_002)
+            current_version = 2
 
         return Ok(current_version)
     except Exception as e:

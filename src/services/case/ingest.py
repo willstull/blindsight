@@ -290,36 +290,36 @@ def ingest_hypotheses(
     conn: duckdb.DuckDBPyConnection,
     hypotheses: list[Hypothesis],
 ) -> Result[int, Exception]:
-    """Upsert hypotheses. Returns count ingested.
-
-    Maps confidence_limit (spec name) to confidence_cap (DuckDB column name).
-    """
+    """Upsert hypotheses. Returns count ingested."""
     try:
         now = _now_ts()
         for h in hypotheses:
             conn.execute(
                 """INSERT INTO hypotheses
-                   (id, tlp, iq_id, statement, likelihood_score, confidence_cap,
+                   (id, tlp, iq_id, statement, likelihood, confidence,
                     supporting_claim_ids, contradicting_claim_ids, gaps,
-                    next_evidence_requests, status, updated_at, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    gap_assessments, next_evidence_requests,
+                    status, updated_at, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(id) DO UPDATE SET
                     tlp=EXCLUDED.tlp, iq_id=EXCLUDED.iq_id,
                     statement=EXCLUDED.statement,
-                    likelihood_score=EXCLUDED.likelihood_score,
-                    confidence_cap=EXCLUDED.confidence_cap,
+                    likelihood=EXCLUDED.likelihood,
+                    confidence=EXCLUDED.confidence,
                     supporting_claim_ids=EXCLUDED.supporting_claim_ids,
                     contradicting_claim_ids=EXCLUDED.contradicting_claim_ids,
                     gaps=EXCLUDED.gaps,
+                    gap_assessments=EXCLUDED.gap_assessments,
                     next_evidence_requests=EXCLUDED.next_evidence_requests,
                     status=EXCLUDED.status, updated_at=EXCLUDED.updated_at,
                     created_at=EXCLUDED.created_at""",
                 [
                     h.id, h.tlp, h.iq_id, h.statement,
-                    h.likelihood_score, h.confidence_limit,
+                    h.likelihood, h.confidence,
                     to_json(h.supporting_claim_ids),
                     to_json(h.contradicting_claim_ids),
                     to_json(h.gaps),
+                    to_json([ga.model_dump() for ga in h.gap_assessments]),
                     to_json(h.next_evidence_requests),
                     h.status, h.updated_at or now, now,
                 ],

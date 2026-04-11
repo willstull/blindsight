@@ -100,8 +100,8 @@ class TestInvestigationMCP:
                 assert data["scenario_name"] == "credential_change_baseline"
                 assert "investigation_question" in data
                 assert "hypothesis" in data
-                assert "likelihood_score" in data
-                assert "confidence_limit" in data
+                assert "likelihood" in data
+                assert "confidence" in data
                 assert "steps" in data
                 assert "case_id" in data
                 assert data["case_id"] is not None

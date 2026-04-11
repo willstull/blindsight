@@ -16,8 +16,16 @@ from src.services.investigation.scoring import (
     build_claims,
     build_hypothesis,
     build_narrative,
+    extract_coverage_gaps,
+    fallback_gap_assessments,
+    score_and_classify,
+    score_confidence_from_gaps,
+    NarrativeResult,
 )
-from src.types.core import InvestigationReport, InvestigationStep, TimeRange
+from src.types.core import (
+    CoverageObservation, GapAssessment,
+    InvestigationReport, InvestigationStep, TimeRange,
+)
 from src.utils.serialization import load_yaml
 
 
@@ -87,11 +95,139 @@ def _error_report(scenario_name: str, question: str, message: str) -> Investigat
             description=message,
         )],
         hypothesis="Unable to complete investigation",
-        likelihood_assessment=message,
-        confidence_assessment="No assessment possible",
-        likelihood_score=0.0,
-        confidence_limit=0.0,
+        likelihood_rationale=message,
+        confidence_rationale="No assessment possible",
+        likelihood="low",
+        confidence="low",
     )
+
+
+def _coverage_observations_from_response(
+    stage: str,
+    tool_name: str,
+    response: dict,
+) -> list[CoverageObservation]:
+    """Extract coverage observations from an MCP tool response.
+
+    Inspects the response envelope for coverage signals. Returns
+    CoverageObservation objects for each signal found.
+
+    empty_result observations are contextual -- they do NOT automatically
+    become confidence-reducing gaps. Only coverage_gap, missing_fields,
+    and limitation types feed into gap assessment.
+    """
+    observations: list[CoverageObservation] = []
+
+    # Check coverage report sources for gaps
+    cov_report = response.get("coverage_report", {})
+    for source in cov_report.get("sources", []):
+        if source.get("status") in ("partial", "missing"):
+            observations.append(CoverageObservation(
+                tool_name=tool_name,
+                stage=stage,
+                observation_type="coverage_gap",
+                description=source.get("notes", f"{source['source_name']} is {source['status']}"),
+            ))
+        if source.get("missing_fields"):
+            observations.append(CoverageObservation(
+                tool_name=tool_name,
+                stage=stage,
+                observation_type="missing_fields",
+                description=f"Missing fields from {source['source_name']}: {', '.join(source['missing_fields'])}",
+            ))
+
+    # Check for limitations
+    for lim in response.get("limitations", []):
+        lim_text = lim if isinstance(lim, str) else str(lim)
+        observations.append(CoverageObservation(
+            tool_name=tool_name,
+            stage=stage,
+            observation_type="limitation",
+            description=lim_text,
+        ))
+
+    # Check for empty results (context, not automatic gap)
+    for key in ("entities", "events", "relationships"):
+        items = response.get(key)
+        if items is not None and len(items) == 0:
+            observations.append(CoverageObservation(
+                tool_name=tool_name,
+                stage=stage,
+                observation_type="empty_result",
+                description=f"{tool_name} returned 0 {key}",
+                result_count=0,
+            ))
+
+    return observations
+
+
+def _build_gap_assessment_prompt(
+    hypothesis_statement: str,
+    scored_claims: list,
+    coverage_gaps: list[dict],
+    observations: list[CoverageObservation],
+) -> str:
+    """Build the LLM prompt for gap relevance classification.
+
+    Extracted for testability. The prompt contract includes:
+    - Hypothesis statement
+    - Supporting and contradicting claims with confidence
+    - Coverage gaps to classify
+    - Broader observations for context
+    - Allowed relevance values and could_change_conclusion definition
+    - Instructions to classify only provided gaps and not invent evidence
+    """
+    supporting = [c for c in scored_claims if c.polarity == "supports"]
+    contradicting = [c for c in scored_claims if c.polarity == "contradicts"]
+
+    prompt = (
+        "You are a security analyst assessing whether coverage gaps in an "
+        "investigation could affect the conclusion.\n\n"
+        f"## Hypothesis\n{hypothesis_statement}\n\n"
+        f"## Supporting claims ({len(supporting)})\n"
+    )
+    for c in supporting[:10]:  # cap to keep prompt compact
+        prompt += f"- {c.statement} (confidence={c.confidence})\n"
+
+    if contradicting:
+        prompt += f"\n## Contradicting claims ({len(contradicting)})\n"
+        for c in contradicting[:10]:
+            prompt += f"- {c.statement} (confidence={c.confidence})\n"
+
+    prompt += "\n## Coverage gaps to classify\n"
+    for gap in coverage_gaps:
+        prompt += (
+            f"- gap_id: {gap['gap_id']}\n"
+            f"  source: {gap.get('source_name', 'unknown')}\n"
+            f"  status: {gap.get('status', 'unknown')}\n"
+            f"  description: {gap.get('description', '')}\n"
+        )
+
+    # Include broader observations as context (capped)
+    if observations:
+        prompt += "\n## Investigation observations (context)\n"
+        for obs in observations[:20]:
+            prompt += f"- [{obs.observation_type}] {obs.stage}/{obs.tool_name}: {obs.description}\n"
+
+    prompt += (
+        "\n## Instructions\n"
+        "For each coverage gap listed above, classify its relevance to "
+        "the hypothesis.\n\n"
+        "Allowed relevance values: critical, relevant, minor, irrelevant\n\n"
+        "For could_change_conclusion:\n"
+        "- true = if this missing evidence were available, it could "
+        "reasonably support a different hypothesis or materially weaken "
+        "the current one\n"
+        "- false = it would improve detail or confidence, but is unlikely "
+        "to alter the main conclusion\n\n"
+        "Classify ONLY the gaps listed above. Do NOT invent new gaps. "
+        "Do NOT invent evidence. Base your assessment on what the "
+        "investigation actually found and what is missing.\n\n"
+        "Return a JSON object with an 'assessments' array. Each element "
+        "must have: gap_id, relevance, could_change_conclusion, reason."
+    )
+
+    return prompt
 
 
 def _dedup_by_id(items: list[dict]) -> list[dict]:
@@ -131,12 +267,12 @@ async def run_investigation(
         principal_hint: Hint for principal search query.
         max_tool_calls: Budget for total MCP tool calls.
         max_events: Max events to request from search_events.
-        use_llm: If True, use LLM for narrative (scores still mechanical).
+        use_llm: If True, use LLM for gap assessment and narrative.
         llm_model: Model identifier for LLM mode.
         cases_dir: Directory for case DB files. If None, uses a temp directory.
 
     Returns:
-        InvestigationReport with hypothesis, scores, gaps, and steps.
+        InvestigationReport with hypothesis, gaps, and steps.
     """
     manifest = _load_manifest(scenario_path)
     scenario_name = manifest["scenario_name"]
@@ -151,6 +287,7 @@ async def run_investigation(
     steps: list[InvestigationStep] = []
     tool_call_count = 0
     total_events_evaluated = 0
+    coverage_observations: list[CoverageObservation] = []
 
     def _check_budget() -> bool:
         return tool_call_count < max_tool_calls
@@ -233,6 +370,9 @@ async def run_investigation(
         cov_report = cov_envelope.get("coverage_report", {})
         cov_status = cov_report.get("overall_status", "unknown")
         step2.key_findings.append(f"Coverage: {cov_status}")
+        coverage_observations.extend(
+            _coverage_observations_from_response("Check coverage", "describe_coverage", cov_envelope)
+        )
         steps.append(step2)
 
         # Ingest coverage into case
@@ -267,10 +407,10 @@ async def run_investigation(
                 investigation_question=question,
                 steps=steps,
                 hypothesis="No principals found -- cannot proceed",
-                likelihood_assessment="No assessment possible",
-                confidence_assessment="No assessment possible",
-                likelihood_score=0.0,
-                confidence_limit=0.0,
+                likelihood_rationale="No assessment possible",
+                confidence_rationale="No assessment possible",
+                likelihood="low",
+                confidence="low",
                 case_id=case_id,
                 tool_calls_used=tool_call_count,
             )
@@ -362,6 +502,9 @@ async def run_investigation(
 
         all_events = events_envelope.get("events", [])
         total_events_evaluated = len(all_events)
+        coverage_observations.extend(
+            _coverage_observations_from_response("Search for evidence", "search_events", events_envelope)
+        )
 
         # Partition: auth.login is background, everything else is evidence
         evidence_events = [e for e in all_events if e.get("action") != "auth.login"]
@@ -482,7 +625,7 @@ async def run_investigation(
         steps.append(step8)
 
         # -- Step 9: Score --
-        step9 = InvestigationStep(stage="Score", description="Build evidence items, claims, and hypothesis")
+        step9 = InvestigationStep(stage="Score", description="Build evidence items, claims, and score likelihood")
 
         evidence_items = build_evidence_items(evidence_events, cov_envelope, time_range)
 
@@ -496,14 +639,12 @@ async def run_investigation(
             evidence_items, cov_envelope, time_range, all_relationships,
             aggregated_facts=aggregated_facts,
         )
-        hyp, scored_claims = build_hypothesis(
-            claims, cov_envelope, question,
-            evidence_events, evidence_prefixes,
+        scoring_result = score_and_classify(
+            claims, evidence_events, question,
         )
 
-        step9.key_findings.append(f"Likelihood: {hyp.likelihood_score}")
-        step9.key_findings.append(f"Confidence limit: {hyp.confidence_limit}")
-        step9.key_findings.append(f"{len(scored_claims)} claim(s), {len(evidence_items)} evidence item(s)")
+        step9.key_findings.append(f"Likelihood: {scoring_result.likelihood}")
+        step9.key_findings.append(f"{len(scoring_result.scored_claims)} claim(s), {len(evidence_items)} evidence item(s)")
         step9.key_findings.append(f"Focal principals: {focal_ids}")
         if focal.primary_id:
             step9.key_findings.append(f"Primary focal: {focal.primary_id}")
@@ -514,16 +655,56 @@ async def run_investigation(
             )
         steps.append(step9)
 
+        # -- Step 9.5: Assess coverage gap relevance --
+        step9b = InvestigationStep(
+            stage="Assess gaps",
+            description="Classify coverage gap relevance for confidence",
+        )
+
+        coverage_gaps = extract_coverage_gaps(cov_envelope, coverage_observations)
+
+        if coverage_gaps and use_llm:
+            gap_assessments = await _assess_gap_relevance(
+                hypothesis=scoring_result.statement,
+                scored_claims=scoring_result.scored_claims,
+                gaps=coverage_gaps,
+                observations=coverage_observations,
+                model=llm_model,
+            )
+        elif coverage_gaps:
+            gap_assessments = fallback_gap_assessments(coverage_gaps)
+        else:
+            gap_assessments = []
+
+        confidence = score_confidence_from_gaps(gap_assessments)
+
+        # Construct final hypothesis (all fields populated)
+        hyp = build_hypothesis(
+            scoring_result=scoring_result,
+            confidence=confidence,
+            gap_assessments=gap_assessments,
+            investigation_question=question,
+        )
+
+        step9b.key_findings.append(f"Confidence: {confidence}")
+        step9b.key_findings.append(f"{len(coverage_gaps)} coverage gap(s), {len(gap_assessments)} assessment(s)")
+        if gap_assessments:
+            for ga in gap_assessments:
+                step9b.key_findings.append(
+                    f"  {ga.gap_id}: {ga.relevance} (could_change={ga.could_change_conclusion})"
+                )
+        steps.append(step9b)
+
         # -- Step 10: Narrative --
         # Use scored_claims (with polarity assigned) so narrative and LLM
         # prompts see the correct supports/contradicts polarities.
         if use_llm:
-            narrative = await _llm_narrative(hyp, scored_claims, cov_envelope, question, llm_model)
+            narrative = await _llm_narrative(hyp, scoring_result.scored_claims, cov_envelope, question, llm_model)
         else:
-            narrative = build_narrative(hyp, scored_claims, cov_envelope)
+            narrative = build_narrative(hyp, scoring_result.scored_claims, cov_envelope)
 
         # Merge coverage gaps with truncation gaps
-        all_gaps = gaps + narrative.get("gaps", [])
+        all_gaps = gaps + narrative.gaps
         if hyp.gaps:
             for g in hyp.gaps:
                 if g not in all_gaps:
@@ -533,13 +714,14 @@ async def run_investigation(
             scenario_name=scenario_name,
             investigation_question=question,
             steps=steps,
-            hypothesis=narrative["hypothesis_text"],
-            likelihood_assessment=narrative["likelihood_assessment"],
-            confidence_assessment=narrative["confidence_assessment"],
-            likelihood_score=hyp.likelihood_score,
-            confidence_limit=hyp.confidence_limit,
+            hypothesis=narrative.hypothesis_text,
+            likelihood_rationale=narrative.likelihood_rationale,
+            confidence_rationale=narrative.confidence_rationale,
+            likelihood=hyp.likelihood,
+            confidence=hyp.confidence,
+            gap_assessments=hyp.gap_assessments,
             gaps=all_gaps,
-            next_steps=narrative.get("next_steps", []),
+            next_steps=narrative.next_steps,
             case_id=case_id,
             total_events_evaluated=total_events_evaluated,
             tool_calls_used=tool_call_count,
@@ -548,14 +730,63 @@ async def run_investigation(
         )
 
 
+async def _assess_gap_relevance(
+    hypothesis: str,
+    scored_claims: list,
+    gaps: list[dict],
+    observations: list[CoverageObservation],
+    model: str | None,
+) -> list[GapAssessment]:
+    """Classify coverage gap relevance using an LLM.
+
+    Falls back to fallback_gap_assessments() on any failure.
+    """
+    try:
+        from pydantic import BaseModel as PydanticBaseModel
+        from pydantic_ai import Agent
+
+        class GapAssessmentItem(PydanticBaseModel):
+            gap_id: str
+            relevance: str  # critical | relevant | minor | irrelevant
+            could_change_conclusion: bool
+            reason: str
+
+        class GapAssessmentResponse(PydanticBaseModel):
+            assessments: list[GapAssessmentItem]
+
+        prompt = _build_gap_assessment_prompt(hypothesis, scored_claims, gaps, observations)
+
+        agent = Agent(
+            model=model or "anthropic:claude-sonnet-4-20250514",
+            output_type=GapAssessmentResponse,
+        )
+        result = await agent.run(prompt)
+
+        # Convert to domain GapAssessment objects with validation
+        assessments: list[GapAssessment] = []
+        valid_relevance = {"critical", "relevant", "minor", "irrelevant"}
+        for item in result.output.assessments:
+            relevance = item.relevance if item.relevance in valid_relevance else "relevant"
+            assessments.append(GapAssessment(
+                gap_id=item.gap_id,
+                relevance=relevance,
+                could_change_conclusion=item.could_change_conclusion,
+                reason=item.reason,
+            ))
+        return assessments
+
+    except Exception:
+        return fallback_gap_assessments(gaps)
+
+
 async def _llm_narrative(
     hypothesis,
     claims,
     cov_envelope: dict,
     question: str,
     model: str | None,
-) -> dict:
-    """Generate narrative text using an LLM. Scores are always mechanical.
+) -> NarrativeResult:
+    """Generate narrative text using an LLM.
 
     Lazy-imports pydantic-ai to avoid requiring it for mechanical mode.
     Falls back to mechanical narrative on import or API errors.
@@ -566,8 +797,8 @@ async def _llm_narrative(
 
         class Narrative(PydanticBaseModel):
             hypothesis_text: str
-            likelihood_assessment: str
-            confidence_assessment: str
+            likelihood_rationale: str
+            confidence_rationale: str
             gaps: list[str]
             next_steps: list[str]
 
@@ -579,8 +810,8 @@ async def _llm_narrative(
             f"You are a security analyst summarizing an investigation.\n\n"
             f"Investigation question: {question}\n\n"
             f"Hypothesis: {hypothesis.statement}\n"
-            f"Likelihood score: {hypothesis.likelihood_score}\n"
-            f"Confidence limit: {hypothesis.confidence_limit}\n\n"
+            f"Likelihood: {hypothesis.likelihood}\n"
+            f"Confidence: {hypothesis.confidence}\n\n"
             f"Supporting claims ({len(supporting)}):\n"
         )
         for c in supporting:
@@ -590,11 +821,17 @@ async def _llm_narrative(
             for c in contradicting:
                 prompt += f"  - {c.statement} (confidence={c.confidence})\n"
         prompt += f"\nCoverage status: {cov_status}\n"
+
+        if hypothesis.gap_assessments:
+            prompt += "\nGap assessments:\n"
+            for ga in hypothesis.gap_assessments:
+                prompt += f"  - {ga.gap_id}: {ga.relevance} (could_change={ga.could_change_conclusion}) -- {ga.reason}\n"
+
         prompt += (
             "\nWrite a concise narrative with:\n"
             "- hypothesis_text: one-sentence hypothesis statement\n"
-            "- likelihood_assessment: what the evidence suggests\n"
-            "- confidence_assessment: what can/cannot be verified\n"
+            "- likelihood_rationale: what the evidence suggests\n"
+            "- confidence_rationale: what can/cannot be verified, referencing gap assessments\n"
             "- gaps: list of data gaps\n"
             "- next_steps: recommended follow-ups\n"
         )
@@ -605,13 +842,13 @@ async def _llm_narrative(
         )
         result = await agent.run(prompt)
         n = result.output
-        return {
-            "hypothesis_text": n.hypothesis_text,
-            "likelihood_assessment": n.likelihood_assessment,
-            "confidence_assessment": n.confidence_assessment,
-            "gaps": n.gaps,
-            "next_steps": n.next_steps,
-        }
+        return NarrativeResult(
+            hypothesis_text=n.hypothesis_text,
+            likelihood_rationale=n.likelihood_rationale,
+            confidence_rationale=n.confidence_rationale,
+            gaps=n.gaps,
+            next_steps=n.next_steps,
+        )
     except Exception:
         # Fall back to mechanical narrative
         return build_narrative(hypothesis, claims, cov_envelope)

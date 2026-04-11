@@ -172,12 +172,13 @@ CREATE TABLE hypotheses (
     tlp VARCHAR NOT NULL,
     iq_id VARCHAR NOT NULL,           -- Investigation question ID
     statement TEXT NOT NULL,
-    likelihood_score DOUBLE NOT NULL, -- 0.0 to 1.0 (what evidence suggests)
-    confidence_cap DOUBLE NOT NULL,   -- 0.0 to 1.0 (upper bound due to gaps)
+    likelihood VARCHAR NOT NULL,       -- 'low', 'medium', 'high'
+    confidence VARCHAR NOT NULL,       -- 'low', 'medium', 'high'
     supporting_claim_ids JSON NOT NULL,  -- Array of claim IDs
     contradicting_claim_ids JSON,      -- Array of claim IDs
-    gaps JSON NOT NULL,                -- Array of coverage_report IDs
-    next_evidence_requests JSON NOT NULL,  -- Array of {domain, tool, params, priority}
+    gaps JSON NOT NULL,                -- Array of gap assessment IDs
+    gap_assessments JSON NOT NULL,     -- Array of {gap_id, relevance, could_change_conclusion, reason}
+    next_evidence_requests JSON NOT NULL,  -- Array of {domain, gap_id, reason, priority}
     status VARCHAR,                    -- 'open', 'ruled_in', 'ruled_out', 'stale'
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

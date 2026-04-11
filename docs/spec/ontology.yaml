@@ -203,15 +203,26 @@ types:
       rationale: { type: "string" }
       impacts: { type: "array", items: { type: "string" }, optional: true }
 
+  gap_assessment:
+    description: "LLM or fallback classification of a coverage gap's relevance to a hypothesis."
+    required: ["gap_id", "relevance", "could_change_conclusion", "reason"]
+    fields:
+      gap_id: { type: "string" }
+      relevance: { type: "string", enum: ["critical", "relevant", "minor", "irrelevant"] }
+      could_change_conclusion:
+        type: "boolean"
+        description: "True if the missing evidence could support a different hypothesis or materially weaken the current one."
+      reason: { type: "string" }
+
   hypothesis:
-    description: "Structured hypothesis with likelihood scoring and confidence limit."
+    description: "Structured hypothesis with categorical likelihood and confidence bands."
     required:
       - "id"
       - "tlp"
       - "iq_id"
       - "statement"
-      - "likelihood_score"
-      - "confidence_limit"
+      - "likelihood"
+      - "confidence"
       - "supporting_claim_ids"
       - "gaps"
       - "next_evidence_requests"
@@ -220,30 +231,32 @@ types:
       tlp: { "$ref": "#/primitives/tlp_marking" }
       iq_id: { type: "string" }
       statement: { type: "string" }
-      likelihood_score:
-        type: "number"
-        minimum: 0.0
-        maximum: 1.0
-      confidence_limit:
-        type: "number"
-        minimum: 0.0
-        maximum: 1.0
-        description: "Upper bound due to coverage gaps and uncertainty."
+      likelihood:
+        type: "string"
+        enum: ["low", "medium", "high"]
+        description: "Deterministic band from evidence-driven claim scoring."
+      confidence:
+        type: "string"
+        enum: ["low", "medium", "high"]
+        description: "Deterministic band from gap assessment relevance classification."
+      gap_assessments:
+        type: "array"
+        items: { "$ref": "#/types/gap_assessment" }
+        description: "Coverage gap relevance classifications."
       supporting_claim_ids: { type: "array", items: { "$ref": "#/primitives/id" } }
       contradicting_claim_ids: { type: "array", items: { "$ref": "#/primitives/id" }, optional: true }
       gaps:
         type: "array"
-        description: "CoverageReport IDs that constrain confidence."
-        items: { "$ref": "#/primitives/id" }
+        description: "IDs of critical or relevant gap assessments."
+        items: { type: "string" }
       next_evidence_requests:
         type: "array"
         items:
           type: "object"
-          required: ["domain", "tool", "params", "priority"]
           fields:
             domain: { type: "string" }
-            tool: { type: "string" }
-            params: { type: "object" }
+            gap_id: { type: "string" }
+            reason: { type: "string" }
             priority: { "$ref": "#/enums/priority" }
       status: { "$ref": "#/enums/hypothesis_status", optional: true }
       updated_at: { "$ref": "#/primitives/timestamp", optional: true }

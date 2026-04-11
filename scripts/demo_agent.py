@@ -116,7 +116,7 @@ Produce a structured InvestigationReport with:
 - A hypothesis statement
 - Likelihood assessment (what evidence suggests)
 - Confidence assessment (what we can/can't verify)
-- Numerical scores (likelihood_score 0-1, confidence_limit 0-1)
+- Categorical assessments (likelihood: low/medium/high, confidence: low/medium/high)
 - Identified gaps
 - Recommended next steps
 """
@@ -217,11 +217,11 @@ def _print_report(report: InvestigationReport) -> None:
         narrate(line)
 
     step("Assessment")
-    print(f"  Likelihood ({report.likelihood_score:.2f}):")
-    for line in report.likelihood_assessment.splitlines():
+    print(f"  Likelihood: {report.likelihood}")
+    for line in report.likelihood_rationale.splitlines():
         print(f"    {line}")
-    print(f"\n  Confidence limit ({report.confidence_limit:.2f}):")
-    for line in report.confidence_assessment.splitlines():
+    print(f"\n  Confidence: {report.confidence}")
+    for line in report.confidence_rationale.splitlines():
         print(f"    {line}")
 
     if report.gaps:
@@ -286,8 +286,8 @@ async def main():
         heading("COMPARISON SUMMARY")
         for r in reports:
             print(f"  {r.scenario_name}:")
-            print(f"    Likelihood:       {r.likelihood_score:.2f}")
-            print(f"    Confidence limit: {r.confidence_limit:.2f}")
+            print(f"    Likelihood:       {r.likelihood}")
+            print(f"    Confidence:       {r.confidence}")
             print(f"    Gaps:             {len(r.gaps)}")
             print(f"    Steps taken:      {len(r.steps)}")
             print()

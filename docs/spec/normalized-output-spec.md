@@ -337,38 +337,33 @@ These field names are **locked** and MUST be consistent across all tools:
 
 ## Hypothesis Confidence Limiting Rule
 
-**Downstream scoring MUST apply this rule**:
+**Downstream scoring MUST apply this rule** (see ADR-0009):
+
+Likelihood and confidence are categorical bands (low, medium, high), not numeric scores.
 
 ```python
-def compute_hypothesis_confidence(hypothesis, coverage_reports):
+def compute_hypothesis_scoring(hypothesis, coverage_gaps, gap_assessments):
     """
-    Confidence limit is determined by worst coverage status in evidence chain.
+    Likelihood: deterministic band from polarity-assigned claims.
+    Confidence: deterministic band from gap relevance assessments.
+
+    Gap assessments are produced by either an LLM provider or a
+    conservative fallback provider. Each gap has a relevance
+    (critical/relevant/minor/irrelevant) and could_change_conclusion flag.
     """
-    likelihood_score = compute_likelihood(hypothesis.claims)  # 0.0-1.0
+    likelihood = score_likelihood(hypothesis.scored_claims, evidence_events)
+    # -> "low", "medium", or "high"
 
-    # Limit based on coverage
-    confidence_limit = 1.0
-    for cov in coverage_reports:
-        if cov.overall_status == "complete":
-            confidence_limit = min(confidence_limit, 1.0)
-        elif cov.overall_status == "partial":
-            confidence_limit = min(confidence_limit, 0.7)  # Reduced confidence
-        elif cov.overall_status == "missing":
-            confidence_limit = min(confidence_limit, 0.3)  # Very low confidence
-        elif cov.overall_status == "unknown":
-            confidence_limit = min(confidence_limit, 0.5)  # Medium confidence
-
-    return {
-        "likelihood_score": likelihood_score,
-        "confidence_limit": confidence_limit,
-        "final_confidence": min(likelihood_score, confidence_limit)  # Take minimum
-    }
+    confidence = score_confidence_from_gaps(gap_assessments)
+    # low:    any critical gap where could_change_conclusion is true
+    # medium: any critical or relevant gap
+    # high:   only minor/irrelevant gaps, or no gaps
 ```
 
 **Example**:
-- Strong evidence → likelihood = 0.95
-- But Okta logs missing → confidence_limit = 0.3
-- **Final confidence = 0.3** (cannot be more certain than data allows)
+- Strong evidence, multiple supporting claims -> likelihood = "high"
+- But Okta logs missing, classified as critical by gap assessment -> confidence = "low"
+- Report shows: likelihood "high", confidence "low" with structured gap assessments explaining why
 
 ---
 
