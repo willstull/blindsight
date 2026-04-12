@@ -1,6 +1,6 @@
 domain: app
-overall_status: unknown
+overall_status: complete
 sources:
 - source_name: app_audit
-  status: unknown
-notes: No app domain server available for verification
+  status: complete
+  notes: Application audit trail complete for investigation period

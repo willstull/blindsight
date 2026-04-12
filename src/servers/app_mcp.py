@@ -1,12 +1,11 @@
-"""Identity domain MCP server.
+"""Application domain MCP server.
 
-Exposes identity domain tools via FastMCP. Each tool handler validates inputs,
-calls the integration, and wraps results into a ResponseEnvelope.
+Exposes application domain tools via FastMCP. Implements the same 7-tool
+domain contract as the identity server (ADR-0006). No convenience wrappers.
 """
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 from mcp.server import FastMCP
 
@@ -17,29 +16,29 @@ from src.utils.mcp_envelope import build_envelope, build_error_envelope
 from src.utils.ulid import generate_ulid
 from src.utils.validator import validate_limit, validate_time_range
 
-_DOMAIN = "identity"
+_DOMAIN = "app"
 
 
-def create_identity_server(
+def create_app_server(
     integration: DomainIntegration,
     logger: logging.Logger,
 ) -> FastMCP:
-    """Create and configure the identity domain MCP server."""
-    server = FastMCP("blindsight-identity-mcp")
+    """Create and configure the application domain MCP server."""
+    server = FastMCP("blindsight-app-mcp")
 
-    # -- Discovery tools (return dict directly) --
+    # -- Discovery tools --
 
     @server.tool()
     async def describe_domain() -> dict:
-        """Return identity domain capabilities and coverage status."""
+        """Return app domain capabilities and coverage status."""
         return await integration.describe_domain()
 
     @server.tool()
     async def describe_types() -> dict:
-        """Return type schema for filtering/searching (entity types, relationship types, context fields)."""
+        """Return type schema for filtering/searching."""
         return await integration.describe_types()
 
-    # -- Evidence tools (return ResponseEnvelope) --
+    # -- Evidence tools --
 
     @server.tool()
     async def get_entity(entity_id: str) -> dict:
@@ -89,12 +88,12 @@ def create_identity_server(
         target_entity_ids: list[str] | None = None,
         limit: int = 2000,
     ) -> dict:
-        """Search normalized identity events within a time range.
+        """Search normalized app events within a time range.
 
         Args:
-            time_range_start: RFC3339 start timestamp (e.g. "2026-01-01T00:00:00Z")
+            time_range_start: RFC3339 start timestamp
             time_range_end: RFC3339 end timestamp
-            actions: Optional action filter (e.g. ["credential.reset"]). Supports prefix matching with * (e.g. "credential.*")
+            actions: Optional action filter (e.g. ["app.invoice.create"]). Supports prefix matching with *
             actor_entity_ids: Optional actor entity ID filter
             target_entity_ids: Optional target entity ID filter
             limit: Maximum results (default 2000)
@@ -148,7 +147,6 @@ def create_identity_server(
             issue = lim_result.err()
             return build_error_envelope(request_id, _DOMAIN, issue.code, issue.message)
 
-        # Reject partial time range -- both or neither
         if bool(time_range_start) != bool(time_range_end):
             return build_error_envelope(
                 request_id, _DOMAIN, "time_range_incomplete",
@@ -157,7 +155,6 @@ def create_identity_server(
 
         time_range = None
         if time_range_start and time_range_end:
-    
             tr_result = validate_time_range(logger, time_range_start, time_range_end)
             if tr_result.is_err():
                 issue = tr_result.err()
@@ -200,99 +197,34 @@ def create_identity_server(
         )
         return build_envelope(request_id, _DOMAIN, result)
 
-    # -- Convenience tools (thin wrappers) --
-
-    @server.tool()
-    async def resolve_principal(
-        identifiers: list[dict],
-        limit: int = 50,
-    ) -> dict:
-        """Resolve principal candidates by email/username/external refs.
-
-        Args:
-            identifiers: List of ref objects with ref_type, system, value
-            limit: Maximum results (default 50)
-        """
-        request_id = generate_ulid()
-        # Extract search terms from identifier values
-        search_terms = [ident.get("value", "") for ident in identifiers if ident.get("value")]
-        query = " ".join(search_terms) if search_terms else ""
-        result = await integration.search_entities(
-            query=query,
-            entity_types=["principal"],
-            limit=min(limit, 50),
-        )
-        return build_envelope(request_id, _DOMAIN, result)
-
-    @server.tool()
-    async def get_principal(principal_entity_id: str) -> dict:
-        """Fetch a principal by principal_entity_id."""
-        request_id = generate_ulid()
-        if not principal_entity_id or not principal_entity_id.strip():
-            return build_error_envelope(request_id, _DOMAIN, "entity_id_required", "principal_entity_id is required")
-
-        result = await integration.get_entity(principal_entity_id.strip())
-        envelope = build_envelope(request_id, _DOMAIN, result)
-
-        if not result.entities:
-            envelope["status"] = "error"
-            envelope["error"] = {"code": "entity_not_found", "message": f"Principal '{principal_entity_id}' not found", "severity": "error"}
-
-        return envelope
-
-    @server.tool()
-    async def list_credential_changes(
-        principal_entity_id: str,
-        time_range_start: str,
-        time_range_end: str,
-    ) -> dict:
-        """List credential/factor changes for a principal.
-
-        Args:
-            principal_entity_id: The principal entity ID
-            time_range_start: RFC3339 start timestamp
-            time_range_end: RFC3339 end timestamp
-        """
-        request_id = generate_ulid()
-
-        tr_result = validate_time_range(logger, time_range_start, time_range_end)
-        if tr_result.is_err():
-            issue = tr_result.err()
-            return build_error_envelope(request_id, _DOMAIN, issue.code, issue.message)
-
-        time_range = tr_result.ok()
-        result = await integration.search_events(
-            time_range=time_range,
-            actions=["credential.*"],
-            actor_entity_ids=[principal_entity_id],
-        )
-        return build_envelope(request_id, _DOMAIN, result)
-
-    logger.info("Identity MCP server configured", extra={"tool_count": len(server._tool_manager._tools)})
     return server
 
 
 if __name__ == "__main__":
-    from src.utils.logging import get_stderr_logger
+    log = logging.getLogger("app_mcp")
+    log.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+    log.addHandler(handler)
 
     if len(sys.argv) < 2:
-        print("Usage: python -m src.servers.identity_mcp <scenario_path>", file=sys.stderr)
+        log.error("Usage: python -m src.servers.app_mcp <scenario_path>")
         sys.exit(1)
 
     scenario_path = Path(sys.argv[1])
     if not scenario_path.exists():
-        print(f"Scenario path not found: {scenario_path}", file=sys.stderr)
+        log.error(f"Scenario path does not exist: {scenario_path}")
         sys.exit(1)
 
-    log = get_stderr_logger("identity_mcp")
+    from src.services.app.factory import create_app_integration
+    from src.services.identity.factory import IntegrationMode
 
-    from src.services.identity.factory import create_identity_integration, IntegrationMode
-
-    integration = create_identity_integration(
+    integration = create_app_integration(
         mode=IntegrationMode.REPLAY,
         config={"scenario_path": str(scenario_path)},
         logger=log,
     )
-
-    server = create_identity_server(integration, log)
+    server = create_app_server(integration, log)
+    log.info("App MCP server configured")
+    print("App MCP server configured")
     server.run()

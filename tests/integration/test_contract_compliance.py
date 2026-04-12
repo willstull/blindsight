@@ -8,7 +8,8 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from src.servers.identity_mcp import create_identity_server, _build_envelope
+from src.servers.identity_mcp import create_identity_server
+from src.utils.mcp_envelope import build_envelope
 from src.services.identity.replay_integration import ReplayIdentityIntegration
 from src.types.core import TimeRange
 from src.utils.ulid import generate_ulid
@@ -52,26 +53,26 @@ class TestResponseEnvelopeCompliance:
             time_range=JAN_RANGE,
             actions=["credential.reset"],
         )
-        envelope = _build_envelope(generate_ulid(), result)
+        envelope = build_envelope(generate_ulid(), "identity", result)
         schema = _resolve_schema(contract, {"$ref": "#/$defs/response_envelope"})
         # Add status and request_id to schema (per plan: these are added fields)
         _validate_envelope(envelope, schema, contract)
 
     async def test_get_entity_envelope(self, contract, integration):
         result = await integration.get_entity("principal_alice")
-        envelope = _build_envelope(generate_ulid(), result)
+        envelope = build_envelope(generate_ulid(), "identity", result)
         schema = _resolve_schema(contract, {"$ref": "#/$defs/response_envelope"})
         _validate_envelope(envelope, schema, contract)
 
     async def test_get_neighbors_envelope(self, contract, integration):
         result = await integration.get_neighbors("principal_alice")
-        envelope = _build_envelope(generate_ulid(), result)
+        envelope = build_envelope(generate_ulid(), "identity", result)
         schema = _resolve_schema(contract, {"$ref": "#/$defs/response_envelope"})
         _validate_envelope(envelope, schema, contract)
 
     async def test_describe_coverage_envelope(self, contract, integration):
         result = await integration.describe_coverage(time_range=JAN_RANGE)
-        envelope = _build_envelope(generate_ulid(), result)
+        envelope = build_envelope(generate_ulid(), "identity", result)
         schema = _resolve_schema(contract, {"$ref": "#/$defs/response_envelope"})
         _validate_envelope(envelope, schema, contract)
 

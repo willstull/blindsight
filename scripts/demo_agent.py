@@ -26,8 +26,9 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import sys
-import tempfile
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -141,8 +142,10 @@ async def run_agent_investigation(scenario_path: Path) -> InvestigationReport:
     narrate(f"Time range: {time_range.start} to {time_range.end}")
     narrate(f"Model: {_get_model()}")
 
-    tmp_dir = Path(tempfile.mkdtemp(prefix="blindsight_agent_"))
     project_root = str(Path(__file__).parent.parent)
+    cases_dir = Path(project_root) / ".blindsight_cases"
+    cases_dir.mkdir(exist_ok=True)
+    has_app_domain = "app" in manifest.get("domains", [])
 
     # MCP servers need PYTHONPATH set so `from src...` imports resolve
     server_env = {**os.environ, "PYTHONPATH": project_root}
@@ -157,16 +160,36 @@ async def run_agent_investigation(scenario_path: Path) -> InvestigationReport:
     case_server = MCPServerStdio(
         "python",
         args=[str(Path(project_root) / "src" / "servers" / "case_mcp.py"),
-              str(tmp_dir)],
+              str(cases_dir)],
         env=server_env,
         cwd=project_root,
+    )
+
+    mcp_servers = [identity_server, case_server]
+    app_server = None
+    if has_app_domain:
+        app_server = MCPServerStdio(
+            "python",
+            args=[str(Path(project_root) / "src" / "servers" / "app_mcp.py"),
+                  str(scenario_path)],
+            env=server_env,
+            cwd=project_root,
+        )
+        mcp_servers.append(app_server)
+
+    domain_hint = (
+        "Use the identity domain tools and app domain tools to gather evidence "
+        "and the case store tools to track your investigation."
+        if has_app_domain else
+        "Use the identity domain tools to gather evidence and the case store "
+        "tools to track your investigation."
     )
 
     agent = Agent(
         model=_get_model(),
         output_type=InvestigationReport,
         system_prompt=SYSTEM_PROMPT,
-        mcp_servers=[identity_server, case_server],
+        mcp_servers=mcp_servers,
     )
 
     user_message = (
@@ -174,15 +197,19 @@ async def run_agent_investigation(scenario_path: Path) -> InvestigationReport:
         f"**Question**: {manifest['question']}\n\n"
         f"**Time range**: {time_range.start} to {time_range.end}\n\n"
         f"**Scenario**: {manifest['scenario_name']}\n\n"
-        f"Use the identity domain tools to gather evidence and the case store "
-        f"tools to track your investigation. Follow the methodology described "
+        f"{domain_hint} Follow the methodology described "
         f"in your instructions."
     )
 
     max_calls = _get_max_tool_calls()
     step(f"Running agent (model={_get_model()}, tool_budget={max_calls})")
 
-    async with identity_server, case_server:
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(identity_server)
+        await stack.enter_async_context(case_server)
+        if app_server:
+            await stack.enter_async_context(app_server)
+
         result = await agent.run(
             user_message,
             usage_limits=UsageLimits(request_limit=max_calls),
@@ -291,6 +318,11 @@ async def main():
             print(f"    Gaps:             {len(r.gaps)}")
             print(f"    Steps taken:      {len(r.steps)}")
             print()
+
+    # Clean up case databases created during the demo
+    cases_dir = Path(__file__).parent.parent / ".blindsight_cases"
+    if cases_dir.exists():
+        shutil.rmtree(cases_dir, ignore_errors=True)
 
     heading("AGENT DEMO COMPLETE")
     narrate(

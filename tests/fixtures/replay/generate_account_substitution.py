@@ -588,6 +588,24 @@ ENTITIES_APP = [
         "display_name": "Financial System",
         "refs": [{"ref_type": "resource_id", "system": "app_audit", "value": "app_financial_system"}],
     },
+    {
+        "id": "principal_garcia_carlos",
+        "tlp": "GREEN",
+        "entity_type": "principal",
+        "kind": "user",
+        "display_name": "garcia.carlos@greenfield-corp.example",
+        "refs": [{"ref_type": "user_id", "system": "app_audit", "value": "app_user_garcia_carlos"}],
+        "attributes": {"email": "garcia.carlos@greenfield-corp.example"},
+    },
+    {
+        "id": "principal_jef_greenfield",
+        "tlp": "GREEN",
+        "entity_type": "principal",
+        "kind": "user",
+        "display_name": "jef.greenfield@greenfield-corp.example",
+        "refs": [{"ref_type": "user_id", "system": "app_audit", "value": "app_user_jef_greenfield"}],
+        "attributes": {"email": "jef.greenfield@greenfield-corp.example"},
+    },
 ]
 
 RELATIONSHIPS_APP: list[dict] = []
@@ -694,14 +712,14 @@ EVENTS_APP = _generate_app_events()
 
 COVERAGE_APP = {
     "domain": "app",
-    "overall_status": "unknown",
+    "overall_status": "complete",
     "sources": [
         {
             "source_name": "app_audit",
-            "status": "unknown",
+            "status": "complete",
+            "notes": "Application audit trail complete for investigation period",
         }
     ],
-    "notes": "No app domain server available for verification",
 }
 
 # ---------- helpers ----------

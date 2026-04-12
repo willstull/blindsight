@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from src.servers.identity_mcp import _build_envelope
+from src.utils.mcp_envelope import build_envelope
 from src.services.identity.replay_integration import ReplayIdentityIntegration
 from src.types.core import TimeRange
 from src.utils.ulid import generate_ulid
@@ -37,7 +37,7 @@ class TestDeterminism:
                 time_range=time_range,
                 actions=["credential.reset", "credential.enroll"],
             )
-            envelope = _build_envelope(generate_ulid(), result)
+            envelope = build_envelope(generate_ulid(), "identity", result)
             outputs.append(_strip_ulids(envelope))
 
         assert outputs[0] == outputs[1], "Run 1 and 2 differ"
@@ -47,7 +47,7 @@ class TestDeterminism:
         outputs = []
         for _ in range(3):
             result = await integration.get_entity("principal_alice")
-            envelope = _build_envelope(generate_ulid(), result)
+            envelope = build_envelope(generate_ulid(), "identity", result)
             outputs.append(_strip_ulids(envelope))
 
         assert outputs[0] == outputs[1]
@@ -57,7 +57,7 @@ class TestDeterminism:
         outputs = []
         for _ in range(3):
             result = await integration.get_neighbors("principal_alice")
-            envelope = _build_envelope(generate_ulid(), result)
+            envelope = build_envelope(generate_ulid(), "identity", result)
             # Sort entities and relationships for stable comparison
             d = envelope.copy()
             d["entities"] = sorted(d["entities"], key=lambda e: e["id"])

@@ -1,12 +1,12 @@
 """Unit tests for pipeline helper functions.
 
-Tests for _coverage_observations_from_response() and
-_build_gap_assessment_prompt() -- the pipeline's coverage observation
-boundary and LLM prompt contract.
+Tests for _coverage_observations_from_response(),
+_build_gap_assessment_prompt(), and _merge_coverage_envelopes().
 """
 from src.services.investigation.pipeline import (
     _coverage_observations_from_response,
     _build_gap_assessment_prompt,
+    _merge_coverage_envelopes,
 )
 from src.types.core import CoverageObservation, GapAssessment
 
@@ -147,3 +147,52 @@ class TestGapAssessmentPrompt:
         # Instructions
         assert "Classify ONLY the gaps listed above" in prompt
         assert "Do NOT invent" in prompt
+
+
+class TestMergeCoverageEnvelopes:
+    """Test _merge_coverage_envelopes() combining multi-domain coverage."""
+
+    def _envelope(self, domain, status, source_name, source_status, notes=None):
+        return {
+            "coverage_report": {
+                "domain": domain,
+                "overall_status": status,
+                "sources": [{"source_name": source_name, "status": source_status}],
+                "notes": notes,
+            }
+        }
+
+    def test_empty_inputs(self):
+        result = _merge_coverage_envelopes()
+        assert result == {}
+
+    def test_single_envelope_prefixes_sources(self):
+        env = self._envelope("identity", "complete", "okta", "complete")
+        result = _merge_coverage_envelopes(env)
+        report = result["coverage_report"]
+        assert report["overall_status"] == "complete"
+        assert len(report["sources"]) == 1
+        assert report["sources"][0]["source_name"] == "identity:okta"
+
+    def test_both_complete(self):
+        env1 = self._envelope("identity", "complete", "okta", "complete")
+        env2 = self._envelope("app", "complete", "app_audit", "complete")
+        result = _merge_coverage_envelopes(env1, env2)
+        report = result["coverage_report"]
+        assert report["overall_status"] == "complete"
+        assert len(report["sources"]) == 2
+        source_names = {s["source_name"] for s in report["sources"]}
+        assert "identity:okta" in source_names
+        assert "app:app_audit" in source_names
+
+    def test_identity_complete_app_partial(self):
+        env1 = self._envelope("identity", "complete", "okta", "complete")
+        env2 = self._envelope("app", "partial", "app_audit", "partial")
+        result = _merge_coverage_envelopes(env1, env2)
+        assert result["coverage_report"]["overall_status"] == "partial"
+
+    def test_identity_partial_app_missing(self):
+        env1 = self._envelope("identity", "partial", "okta", "partial")
+        env2 = self._envelope("app", "missing", "app_audit", "missing")
+        result = _merge_coverage_envelopes(env1, env2)
+        assert result["coverage_report"]["overall_status"] == "missing"

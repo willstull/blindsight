@@ -1,11 +1,13 @@
-"""Investigation pipeline: orchestrates identity + case MCP servers.
+"""Investigation pipeline: orchestrates domain + case MCP servers.
 
-Core function run_investigation() launches both servers as subprocesses,
-executes a bounded investigation loop, and returns an InvestigationReport.
+Core function run_investigation() launches domain servers (identity, optionally app)
+and a case server as subprocesses, executes a bounded investigation loop, and
+returns an InvestigationReport.
 """
 import logging
 import tempfile
 import time
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 from src.services.investigation.aggregation import aggregate_evidence
@@ -243,6 +245,47 @@ def _dedup_by_id(items: list[dict]) -> list[dict]:
     return result
 
 
+_STATUS_RANK = {"complete": 0, "unknown": 1, "partial": 2, "missing": 3}
+
+
+def _merge_coverage_envelopes(*envelopes: dict) -> dict:
+    """Merge coverage reports from multiple domain envelopes.
+
+    Combines sources with domain-prefixed names. Takes worst overall_status.
+    Returns a composite envelope for scoring/gap extraction.
+    """
+    reports = [
+        e.get("coverage_report")
+        for e in envelopes
+        if e and e.get("coverage_report")
+    ]
+    if not reports:
+        return {}
+
+    merged = dict(reports[0])
+    merged["domain"] = "multi"
+    merged["sources"] = []
+    worst = "complete"
+    notes = []
+
+    for report in reports:
+        domain = report.get("domain", "unknown")
+        status = report.get("overall_status", "unknown")
+        if _STATUS_RANK.get(status, 1) > _STATUS_RANK.get(worst, 1):
+            worst = status
+        if report.get("notes"):
+            notes.append(f"{domain}: {report['notes']}")
+        for source in report.get("sources", []):
+            enriched = dict(source)
+            enriched["domain"] = domain
+            enriched["source_name"] = f"{domain}:{source.get('source_name', 'unknown')}"
+            merged["sources"].append(enriched)
+
+    merged["overall_status"] = worst
+    merged["notes"] = "; ".join(notes) if notes else None
+    return {"coverage_report": merged}
+
+
 async def run_investigation(
     scenario_path: Path,
     logger: logging.Logger,
@@ -250,7 +293,7 @@ async def run_investigation(
     time_range_start: str | None = None,
     time_range_end: str | None = None,
     principal_hint: str | None = None,
-    max_tool_calls: int = 30,
+    max_tool_calls: int = 40,
     max_events: int = 2000,
     use_llm: bool = False,
     llm_model: str | None = None,
@@ -293,6 +336,7 @@ async def run_investigation(
         return tool_call_count < max_tool_calls
 
     tmp_dir = cases_dir or tempfile.mkdtemp(prefix="blindsight_inv_")
+    has_app_domain = "app" in manifest.get("domains", [])
 
     identity_cmd = "python"
     identity_args = [
@@ -304,11 +348,24 @@ async def run_investigation(
         f"{_PROJECT_ROOT}/src/servers/case_mcp.py",
         tmp_dir,
     ]
+    app_cmd = "python"
+    app_args = [
+        f"{_PROJECT_ROOT}/src/servers/app_mcp.py",
+        str(scenario_path),
+    ]
 
-    async with (
-        open_mcp_session(identity_cmd, identity_args, logger) as id_session,
-        open_mcp_session(case_cmd, case_args, logger) as case_session,
-    ):
+    async with AsyncExitStack() as stack:
+        id_session = await stack.enter_async_context(
+            open_mcp_session(identity_cmd, identity_args, logger)
+        )
+        case_session = await stack.enter_async_context(
+            open_mcp_session(case_cmd, case_args, logger)
+        )
+        app_session = None
+        if has_app_domain:
+            app_session = await stack.enter_async_context(
+                open_mcp_session(app_cmd, app_args, logger)
+            )
 
         # -- Step 1: Create case --
         step1 = InvestigationStep(stage="Create case", description="Open investigation case")
@@ -375,13 +432,43 @@ async def run_investigation(
         )
         steps.append(step2)
 
-        # Ingest coverage into case
+        # Ingest identity coverage into case
         if _check_budget():
             await call_tool(case_session, "ingest_records", {
                 "case_id": case_id,
                 "domain_response": cov_envelope,
             }, logger)
             tool_call_count += 1
+
+        # App domain coverage (if available)
+        app_cov_envelope = {}
+        if app_session and _check_budget():
+            app_cov_envelope = await _call_and_record(
+                app_session, case_session, "describe_coverage", {
+                    "time_range_start": time_range.start,
+                    "time_range_end": time_range.end,
+                }, logger, case_id, "app",
+            )
+            tool_call_count += 1
+            step2.tool_calls.append("describe_coverage (app)")
+            app_cov_status = app_cov_envelope.get("coverage_report", {}).get("overall_status", "unknown")
+            step2.key_findings.append(f"App coverage: {app_cov_status}")
+            coverage_observations.extend(
+                _coverage_observations_from_response("Check coverage", "describe_coverage (app)", app_cov_envelope)
+            )
+            # Ingest app coverage into case
+            if _check_budget():
+                await call_tool(case_session, "ingest_records", {
+                    "case_id": case_id,
+                    "domain_response": app_cov_envelope,
+                }, logger)
+                tool_call_count += 1
+
+        # Merge coverage envelopes for scoring (composite, worst-status wins)
+        if app_cov_envelope:
+            merged_cov_envelope = _merge_coverage_envelopes(cov_envelope, app_cov_envelope)
+        else:
+            merged_cov_envelope = cov_envelope
 
         # -- Step 3: Discover principals --
         step3 = InvestigationStep(stage="Discover principals", description="Find subject entities")
@@ -531,6 +618,39 @@ async def run_investigation(
             }, logger)
             tool_call_count += 1
 
+        # App domain events (if available)
+        if app_session and _check_budget():
+            app_events_envelope = await _call_and_record(
+                app_session, case_session, "search_events", {
+                    "time_range_start": time_range.start,
+                    "time_range_end": time_range.end,
+                    "limit": limit,
+                }, logger, case_id, "app",
+            )
+            tool_call_count += 1
+            step6.tool_calls.append("search_events (app)")
+            coverage_observations.extend(
+                _coverage_observations_from_response("Search for evidence", "search_events (app)", app_events_envelope)
+            )
+
+            app_events = app_events_envelope.get("events", [])
+            # All app events are evidence (no background partition)
+            all_events = all_events + app_events
+            evidence_events = evidence_events + app_events
+            total_events_evaluated = len(all_events)
+
+            step6.key_findings.append(
+                f"{len(app_events)} app event(s) added to evidence pool"
+            )
+
+            # Ingest app events into case
+            if _check_budget():
+                await call_tool(case_session, "ingest_records", {
+                    "case_id": case_id,
+                    "domain_response": app_events_envelope,
+                }, logger)
+                tool_call_count += 1
+
         # -- Focal resolution --
         focal = resolve_focal_principals(
             question, principal_hint, principals, evidence_events, all_relationships,
@@ -627,7 +747,7 @@ async def run_investigation(
         # -- Step 9: Score --
         step9 = InvestigationStep(stage="Score", description="Build evidence items, claims, and score likelihood")
 
-        evidence_items = build_evidence_items(evidence_events, cov_envelope, time_range)
+        evidence_items = build_evidence_items(evidence_events, merged_cov_envelope, time_range)
 
         # Aggregate evidence before claim building
         aggregated_facts = aggregate_evidence(
@@ -636,7 +756,7 @@ async def run_investigation(
 
         claims = build_claims(
             evidence_events, all_events, focal,
-            evidence_items, cov_envelope, time_range, all_relationships,
+            evidence_items, merged_cov_envelope, time_range, all_relationships,
             aggregated_facts=aggregated_facts,
         )
         scoring_result = score_and_classify(
@@ -661,7 +781,7 @@ async def run_investigation(
             description="Classify coverage gap relevance for confidence",
         )
 
-        coverage_gaps = extract_coverage_gaps(cov_envelope, coverage_observations)
+        coverage_gaps = extract_coverage_gaps(merged_cov_envelope, coverage_observations)
 
         if coverage_gaps and use_llm:
             gap_assessments = await _assess_gap_relevance(
@@ -699,9 +819,9 @@ async def run_investigation(
         # Use scored_claims (with polarity assigned) so narrative and LLM
         # prompts see the correct supports/contradicts polarities.
         if use_llm:
-            narrative = await _llm_narrative(hyp, scoring_result.scored_claims, cov_envelope, question, llm_model)
+            narrative = await _llm_narrative(hyp, scoring_result.scored_claims, merged_cov_envelope, question, llm_model)
         else:
-            narrative = build_narrative(hyp, scoring_result.scored_claims, cov_envelope)
+            narrative = build_narrative(hyp, scoring_result.scored_claims, merged_cov_envelope)
 
         # Merge coverage gaps with truncation gaps
         all_gaps = gaps + narrative.gaps

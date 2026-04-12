@@ -12,6 +12,7 @@
 - Evidence aggregation: 4 aggregation categories (lifecycle_chain, shared_indicator, credential_sequence, action_burst) feeding into claim building and scoring
 - Follow-up query tools: 6 tools proxying to case server via MCP subprocess, filesystem-backed discovery (ADR-0008)
 - Categorical scoring: likelihood and confidence as low/medium/high bands, LLM-based coverage gap relevance classification, structured GapAssessment output (ADR-0009, supersedes ADR-0005)
+- Application domain MCP server: second evidence domain, same 7-tool contract, shared replay base class, multi-domain pipeline with coverage merging and entity merge on ingest (ADR-0010)
 
 ## Doing
 

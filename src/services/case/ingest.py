@@ -22,34 +22,82 @@ def _now_ts() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _merge_refs(existing_json: str | None, new_refs: list) -> str:
+    """Merge entity refs, deduplicating by (ref_type, system, value)."""
+    existing = json.loads(existing_json) if existing_json else []
+    seen = {(r.get("ref_type"), r.get("system"), r.get("value")) for r in existing}
+    merged = list(existing)
+    for r in new_refs:
+        key = (r.get("ref_type"), r.get("system"), r.get("value"))
+        if key not in seen:
+            merged.append(r)
+            seen.add(key)
+    return json.dumps(merged)
+
+
+def _merge_attributes(existing_json: str | None, new_attrs: dict | None) -> str:
+    """Merge entity attributes dicts, new values taking precedence."""
+    existing = json.loads(existing_json) if existing_json else {}
+    if not isinstance(existing, dict):
+        existing = {}
+    if new_attrs:
+        existing.update(new_attrs)
+    return json.dumps(existing) if existing else "null"
+
+
 def ingest_entities(
     logger: logging.Logger,
     conn: duckdb.DuckDBPyConnection,
     entities: list[Entity],
 ) -> Result[int, Exception]:
-    """Upsert entities. Returns count ingested."""
+    """Upsert entities with ref and attribute merging.
+
+    On conflict, refs are deduplicated and merged (not replaced).
+    Attributes are merged with new values taking precedence.
+    This supports shared entities across domains.
+    """
     try:
         now = _now_ts()
         for e in entities:
-            refs_json = to_json([r.model_dump(exclude_none=True) for r in e.refs]) if e.refs else "[]"
-            attrs_json = to_json(e.attributes)
-            conn.execute(
-                """INSERT INTO entities
-                   (id, tlp, entity_type, kind, display_name, refs, attributes,
-                    first_seen, last_seen, confidence, ingested_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(id) DO UPDATE SET
-                    tlp=EXCLUDED.tlp, entity_type=EXCLUDED.entity_type,
-                    kind=EXCLUDED.kind, display_name=EXCLUDED.display_name,
-                    refs=EXCLUDED.refs, attributes=EXCLUDED.attributes,
-                    first_seen=EXCLUDED.first_seen, last_seen=EXCLUDED.last_seen,
-                    confidence=EXCLUDED.confidence, ingested_at=EXCLUDED.ingested_at""",
-                [
-                    e.id, e.tlp, e.entity_type, e.kind, e.display_name,
-                    refs_json, attrs_json,
-                    e.first_seen, e.last_seen, e.confidence, now,
-                ],
-            )
+            new_refs = [r.model_dump(exclude_none=True) for r in e.refs] if e.refs else []
+
+            # Check for existing entity to merge refs/attributes
+            row = conn.execute(
+                "SELECT refs, attributes FROM entities WHERE id = ?", [e.id]
+            ).fetchone()
+
+            if row:
+                merged_refs = _merge_refs(row[0], new_refs)
+                merged_attrs = _merge_attributes(row[1], e.attributes)
+                conn.execute(
+                    """UPDATE entities SET
+                        tlp=?, entity_type=?, kind=?, display_name=?,
+                        refs=?, attributes=?,
+                        first_seen=COALESCE(?, first_seen),
+                        last_seen=COALESCE(?, last_seen),
+                        confidence=?, ingested_at=?
+                       WHERE id=?""",
+                    [
+                        e.tlp, e.entity_type, e.kind, e.display_name,
+                        merged_refs, merged_attrs,
+                        e.first_seen, e.last_seen, e.confidence, now,
+                        e.id,
+                    ],
+                )
+            else:
+                refs_json = to_json(new_refs)
+                attrs_json = to_json(e.attributes)
+                conn.execute(
+                    """INSERT INTO entities
+                       (id, tlp, entity_type, kind, display_name, refs, attributes,
+                        first_seen, last_seen, confidence, ingested_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [
+                        e.id, e.tlp, e.entity_type, e.kind, e.display_name,
+                        refs_json, attrs_json,
+                        e.first_seen, e.last_seen, e.confidence, now,
+                    ],
+                )
         logger.info("Ingested entities", extra={"count": len(entities)})
         return Ok(len(entities))
     except Exception as e:

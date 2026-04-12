@@ -1,7 +1,7 @@
 """Unit tests for coverage report generation."""
 import pytest
 from tests.conftest import get_test_logger
-from src.services.identity.coverage import (
+from src.utils.coverage import (
     build_coverage_report,
     build_limitations,
     determine_response_status,

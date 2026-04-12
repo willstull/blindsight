@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from src.services.identity.coverage import determine_response_status
+from src.utils.coverage import determine_response_status
 from src.services.identity.replay_integration import ReplayIdentityIntegration
 from src.types.core import TimeRange
 from tests.conftest import ALL_SCENARIO_NAMES, get_test_logger, scenario_path_for

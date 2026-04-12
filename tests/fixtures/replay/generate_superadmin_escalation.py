@@ -170,6 +170,15 @@ ENTITIES_APP = [
         "display_name": "Financial System",
         "refs": [{"ref_type": "resource_id", "system": "app_audit", "value": "res_financial_system"}],
     },
+    {
+        "id": "principal_rchen_ops",
+        "tlp": "GREEN",
+        "entity_type": "principal",
+        "kind": "user",
+        "display_name": "rchen.ops@cascade-industries.example",
+        "refs": [{"ref_type": "user_id", "system": "app_audit", "value": "app_user_rchen_ops"}],
+        "attributes": {"email": "rchen.ops@cascade-industries.example"},
+    },
 ]
 
 RELATIONSHIPS_APP: list[dict] = []
@@ -206,14 +215,14 @@ APP_EVENTS = _generate_app_events()
 
 APP_COVERAGE = {
     "domain": "app",
-    "overall_status": "unknown",
+    "overall_status": "complete",
     "sources": [
         {
             "source_name": "app_audit",
-            "status": "unknown",
+            "status": "complete",
+            "notes": "Application audit trail complete for investigation period",
         },
     ],
-    "notes": "No app domain server available for verification",
 }
 
 # ---------- identity events ----------

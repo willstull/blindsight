@@ -1,4 +1,4 @@
-"""Coverage report generation for identity domain."""
+"""Coverage report generation for domain integrations."""
 import logging
 from typing import Optional
 

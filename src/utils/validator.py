@@ -1,4 +1,4 @@
-"""Request validation for identity domain tools."""
+"""Request validation for domain MCP server tools."""
 import logging
 from typing import Optional
 

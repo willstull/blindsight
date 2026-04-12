@@ -1,25 +1,5 @@
 {
   "mcpServers": {
-    "blindsight-identity": {
-      "command": "poetry",
-      "args": [
-        "run",
-        "python",
-        "-m",
-        "src.servers.identity_mcp",
-        "tests/fixtures/replay/scenarios/credential_change_baseline"
-      ]
-    },
-    "blindsight-case": {
-      "command": "poetry",
-      "args": [
-        "run",
-        "python",
-        "-m",
-        "src.servers.case_mcp",
-        "/tmp/blindsight-cases"
-      ]
-    },
     "blindsight-investigation": {
       "command": "poetry",
       "args": [

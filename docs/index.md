@@ -28,6 +28,7 @@ Stable interfaces and invariants:
 - [ADR-0007: Investigation Orchestration Server](adr/ADR-0007-investigation-orchestration-server.md)
 - [ADR-0008: Investigation Follow-up Tools](adr/ADR-0008-investigation-followup-tools.md)
 - [ADR-0009: Categorical Scoring](adr/ADR-0009-categorical-scoring.md)
+- [ADR-0010: Application Domain Server](adr/ADR-0010-app-domain-server.md)
 
 ## Project Information
 

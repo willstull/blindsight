@@ -1,1 +1,2 @@
-{"id":"resource_financial_system","tlp":"GREEN","entity_type":"resource","kind":"application","display_name":"Financial System","refs":[{"ref_type":"resource_id","system":"app_audit","value":"res_financial_system"}]}
+{"id": "resource_financial_system", "tlp": "GREEN", "entity_type": "resource", "kind": "application", "display_name": "Financial System", "refs": [{"ref_type": "resource_id", "system": "app_audit", "value": "res_financial_system"}]}
+{"id": "principal_rchen_ops", "tlp": "GREEN", "entity_type": "principal", "kind": "user", "display_name": "rchen.ops@cascade-industries.example", "refs": [{"ref_type": "user_id", "system": "app_audit", "value": "app_user_rchen_ops"}], "attributes": {"email": "rchen.ops@cascade-industries.example"}}

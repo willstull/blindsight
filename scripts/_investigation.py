@@ -12,7 +12,7 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.shortcuts import radiolist_dialog
 
 from src.services.identity.replay_integration import ReplayIdentityIntegration
-from src.servers.identity_mcp import _build_envelope
+from src.utils.mcp_envelope import build_envelope
 from src.services.case.store import open_case_db, create_case
 from src.services.case.ingest import ingest_domain_response, record_tool_call
 from src.services.case.query import (
@@ -209,7 +209,7 @@ async def investigate(scenario_path: Path) -> dict:
     narrate("Before looking at events, check what sources are available "
             "and whether there are gaps.")
     cov_result = await integration.describe_coverage(time_range=time_range)
-    cov_envelope = _build_envelope(generate_ulid(), cov_result)
+    cov_envelope = build_envelope(generate_ulid(), "identity", cov_result)
     cov = cov_envelope["coverage_report"]
     print(f"  Overall coverage: {cov['overall_status']}")
     for src in cov["sources"]:
@@ -238,7 +238,7 @@ async def investigate(scenario_path: Path) -> dict:
     principal_result = await integration.search_entities(
         "", entity_types=["principal"],
     )
-    principal_envelope = _build_envelope(generate_ulid(), principal_result)
+    principal_envelope = build_envelope(generate_ulid(), "identity", principal_result)
     principals = principal_envelope.get("entities", [])
 
     if not principals:
@@ -283,7 +283,7 @@ async def investigate(scenario_path: Path) -> dict:
     step("3. What is the subject connected to? (get_neighbors)")
     narrate("Map credentials, sessions, and devices linked to this principal.")
     neighbor_result = await integration.get_neighbors(subject_id)
-    neighbor_envelope = _build_envelope(generate_ulid(), neighbor_result)
+    neighbor_envelope = build_envelope(generate_ulid(), "identity", neighbor_result)
 
     by_type: dict[str, list[dict]] = {}
     for rel in neighbor_envelope.get("relationships", []):
@@ -339,7 +339,7 @@ async def investigate(scenario_path: Path) -> dict:
             time_range=time_range,
             actions=[f"{prefix}*"],
         )
-        prefix_envelope = _build_envelope(generate_ulid(), prefix_result)
+        prefix_envelope = build_envelope(generate_ulid(), "identity", prefix_result)
         events = prefix_envelope.get("events", [])
         cred_events.extend(events)
         ingest_domain_response(logger, conn, prefix_envelope)
@@ -361,7 +361,7 @@ async def investigate(scenario_path: Path) -> dict:
             time_range=time_range,
             actions=["auth.account.*"],
         )
-        acct_envelope = _build_envelope(generate_ulid(), acct_result)
+        acct_envelope = build_envelope(generate_ulid(), "identity", acct_result)
         acct_events = acct_envelope.get("events", [])
         cred_events.extend(acct_events)
         ingest_domain_response(logger, conn, acct_envelope)
@@ -417,7 +417,7 @@ async def investigate(scenario_path: Path) -> dict:
     all_result = await integration.search_events(
         time_range=TimeRange(start=narrow_start, end=narrow_end),
     )
-    all_envelope = _build_envelope(generate_ulid(), all_result)
+    all_envelope = build_envelope(generate_ulid(), "identity", all_result)
     ingest_domain_response(logger, conn, all_envelope)
     record_tool_call(
         logger, conn, case_id=case_id, request_id=generate_ulid(),

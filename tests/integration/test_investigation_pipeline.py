@@ -173,7 +173,7 @@ class TestCrossScenarioFocal:
         assert report.confidence == "high"
 
     async def test_account_substitution_baseline(self):
-        """Account substitution: garcia_carlos as primary, multiple focal, high likelihood."""
+        """Account substitution: multiple focal, high likelihood, app events included."""
         report = await run_investigation(
             FIXTURES_DIR / "account_substitution_baseline",
             _logger(),
@@ -189,9 +189,10 @@ class TestCrossScenarioFocal:
         assert "principal_mreyes" in report.focal_principals, (
             f"mreyes should be focal, got: {report.focal_principals}"
         )
-        # garcia_carlos has the most evidence activity (creates, deletes, grants)
-        assert report.focal_primary == "principal_garcia_carlos", (
-            f"Expected garcia_carlos as primary focal, got: {report.focal_primary}"
+        # With app domain events, jef_greenfield has the most evidence activity
+        # (17 app events: invoices, payments, user updates) so becomes primary focal
+        assert report.focal_primary in ("principal_garcia_carlos", "principal_jef_greenfield"), (
+            f"Expected garcia_carlos or jef_greenfield as primary focal, got: {report.focal_primary}"
         )
         # Account substitution has lifecycle + cross-actor: should classify and score
         assert report.likelihood == "high", (
@@ -254,4 +255,51 @@ class TestCrossScenarioFocal:
         )
         assert report.confidence in ("low", "medium")
 
+
+class TestMultiDomainPipeline:
+    """Tests that app domain events are incorporated when available."""
+
+    async def test_multi_domain_increases_event_count(self):
+        """Account substitution with app domain should have more events than identity alone."""
+        report = await run_investigation(
+            FIXTURES_DIR / "account_substitution_baseline",
+            _logger(),
+        )
+        # Identity-only was 21 events. With app domain, should be 21 + 17 = 38.
+        assert report.total_events_evaluated > 21, (
+            f"Expected multi-domain event count > 21, got {report.total_events_evaluated}"
+        )
+
+    async def test_app_events_in_step_findings(self):
+        """Pipeline step findings should mention app events."""
+        report = await run_investigation(
+            FIXTURES_DIR / "account_substitution_baseline",
+            _logger(),
+        )
+        step_text = " ".join(
+            f for s in report.steps for f in s.key_findings
+        )
+        assert "app event" in step_text.lower(), (
+            f"Expected 'app event' in step findings, got: {step_text}"
+        )
+
+    async def test_identity_only_still_works(self):
+        """Credential change (no app domain) should still work normally."""
+        report = await run_investigation(
+            FIXTURES_DIR / "credential_change_baseline",
+            _logger(),
+        )
+        assert report.likelihood == "high"
+        assert report.confidence == "high"
+        # No app events -- only identity domain events
+        assert report.total_events_evaluated > 0
+
+    async def test_multi_domain_likelihood_high(self):
+        """Account substitution baseline with app domain should still score high."""
+        report = await run_investigation(
+            FIXTURES_DIR / "account_substitution_baseline",
+            _logger(),
+        )
+        assert report.likelihood == "high"
+        assert report.confidence == "high"
 

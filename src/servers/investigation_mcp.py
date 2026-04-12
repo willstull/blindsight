@@ -137,7 +137,7 @@ def create_investigation_server(
         time_range_start: Optional[str] = None,
         time_range_end: Optional[str] = None,
         principal_hint: Optional[str] = None,
-        max_tool_calls: int = 30,
+        max_tool_calls: int = 40,
         max_events: int = 2000,
         use_llm: bool = False,
         llm_model: Optional[str] = None,
@@ -150,9 +150,9 @@ def create_investigation_server(
             time_range_start: Override time range start (RFC3339).
             time_range_end: Override time range end (RFC3339).
             principal_hint: Hint for principal search query.
-            max_tool_calls: Budget for total MCP tool calls (default 30).
+            max_tool_calls: Budget for total MCP tool calls (default 40).
             max_events: Max events per search (default 2000).
-            use_llm: Use LLM for narrative text (scores always mechanical).
+            use_llm: Use LLM for gap assessment and narrative.
             llm_model: Model identifier for LLM mode.
 
         Returns an InvestigationReport with hypothesis, scores, gaps, and steps.
