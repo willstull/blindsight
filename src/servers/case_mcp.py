@@ -15,7 +15,7 @@ from src.services.case.store import open_case_db, create_case, get_case
 from src.services.case.ingest import ingest_domain_response, record_tool_call
 from src.services.case.query import (
     query_entities, query_events, query_neighbors,
-    get_timeline, get_tool_call_history,
+    get_timeline, get_tool_call_history, get_report_facts,
 )
 from src.types.core import CoverageReport, TimeRange, SourceStatus
 from src.utils.ulid import generate_ulid
@@ -161,7 +161,7 @@ def create_case_server(cases_dir: Path, logger: logging.Logger) -> FastMCP:
 
         conn = db_result.ok()
         try:
-            result = ingest_domain_response(logger, conn, domain_response)
+            result = ingest_domain_response(logger, conn, domain_response, case_id=case_id)
             if result.is_err():
                 return _error_envelope(request_id, "ingest_failed", str(result.err()))
             return _success_envelope(request_id, results=[result.ok()])
@@ -377,6 +377,35 @@ def create_case_server(cases_dir: Path, logger: logging.Logger) -> FastMCP:
             if result.is_err():
                 return _error_envelope(request_id, "query_failed", str(result.err()))
             return _success_envelope(request_id, results=result.ok())
+        finally:
+            conn.close()
+
+    @server.tool()
+    async def get_report_facts_tool(case_id: str) -> dict:
+        """Collect all report facts from a case in one call.
+
+        Returns case metadata, hypotheses, claims, evidence items, timeline,
+        entities, coverage reports, and tool call history.
+        """
+        request_id = generate_ulid()
+        err = _validate_case_id(case_id)
+        if err:
+            return _error_envelope(request_id, "invalid_case_id", err)
+
+        db_path = _db_path_for_case(cases_dir, case_id)
+        if not db_path.exists():
+            return _error_envelope(request_id, "case_not_found", f"Case '{case_id}' not found")
+
+        db_result = open_case_db(logger, db_path)
+        if db_result.is_err():
+            return _error_envelope(request_id, "db_open_failed", str(db_result.err()))
+
+        conn = db_result.ok()
+        try:
+            result = get_report_facts(logger, conn, case_id)
+            if result.is_err():
+                return _error_envelope(request_id, "query_failed", str(result.err()))
+            return _success_envelope(request_id, results=[result.ok()])
         finally:
             conn.close()
 

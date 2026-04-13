@@ -200,7 +200,11 @@ class TestIngestDomainResponse:
         result = ingest_domain_response(logger, case_db, {})
         assert result.is_ok()
         counts = result.ok()
-        assert counts == {"entities": 0, "events": 0, "relationships": 0, "coverage_reports": 0}
+        assert counts == {
+            "entities": 0, "events": 0, "relationships": 0,
+            "coverage_reports": 0, "evidence_items": 0, "claims": 0,
+            "hypotheses": 0,
+        }
 
     def test_ingest_entities_only(self, case_db):
         logger = get_test_logger()

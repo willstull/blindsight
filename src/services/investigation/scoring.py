@@ -258,6 +258,7 @@ def build_evidence_items(
     cred_events: list[dict],
     cov_envelope: dict,
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[EvidenceItem]:
     """Wrap discovered events and coverage into EvidenceItem objects."""
     items = []
@@ -273,8 +274,8 @@ def build_evidence_items(
 
         items.append(EvidenceItem(
             id=generate_ulid(),
-            tlp="AMBER",
-            domain="identity",
+            tlp=tlp,
+            domain=evt["domain"],
             summary=f"{evt['action']} by {evt['actor']['actor_entity_id']} "
                     f"at {evt['ts']} (outcome={evt['outcome']})",
             raw_refs=raw_refs,
@@ -282,20 +283,6 @@ def build_evidence_items(
             related_entity_ids=related_entity_ids,
             related_event_ids=[evt["id"]],
         ))
-
-    # Coverage as evidence
-    cov = cov_envelope["coverage_report"]
-    items.append(EvidenceItem(
-        id=generate_ulid(),
-        tlp="AMBER",
-        domain="identity",
-        summary=f"Coverage report: {cov['overall_status']} "
-                f"({len(cov.get('sources', []))} source(s))",
-        raw_refs=[],
-        collected_at=time_range.end,
-        related_entity_ids=[],
-        related_event_ids=[],
-    ))
 
     return items
 
@@ -313,6 +300,7 @@ def build_claims(
     time_range: TimeRange,
     relationships: list[dict],
     aggregated_facts: list | None = None,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Create Claim objects from evidence patterns.
 
@@ -330,33 +318,33 @@ def build_claims(
     claims: list[Claim] = []
 
     claims.extend(_claims_actor_pattern(
-        evidence_events, focal, target_to_principal, evidence_ids, cov_status, time_range,
+        evidence_events, focal, target_to_principal, evidence_ids, cov_status, time_range, tlp,
     ))
     claims.extend(_claims_ip_pattern(
-        all_events, focal, evidence_ids, cov_status, time_range,
+        all_events, focal, evidence_ids, cov_status, time_range, tlp,
     ))
     claims.extend(_claims_credential_targeting(
-        evidence_events, focal, target_to_principal, evidence_ids, time_range,
+        evidence_events, focal, target_to_principal, evidence_ids, time_range, tlp,
     ))
     claims.extend(_claims_lifecycle(
-        evidence_events, evidence_ids, time_range,
+        evidence_events, evidence_ids, time_range, tlp,
     ))
     claims.extend(_claims_privilege(
-        evidence_events, focal, target_to_principal, evidence_ids, time_range,
+        evidence_events, focal, target_to_principal, evidence_ids, time_range, tlp,
     ))
     claims.extend(_claims_temporal_clustering(
-        evidence_events, evidence_ids, time_range,
+        evidence_events, evidence_ids, time_range, tlp,
     ))
     claims.extend(_claims_failed_outcomes(
-        evidence_events, evidence_ids, time_range,
+        evidence_events, evidence_ids, time_range, tlp,
     ))
     claims.extend(_claims_coverage(
-        cov_envelope, evidence_ids, time_range,
+        cov_envelope, evidence_ids, time_range, tlp,
     ))
 
     if aggregated_facts:
         claims.extend(_claims_from_aggregated_facts(
-            aggregated_facts, evidence_items, time_range,
+            aggregated_facts, evidence_items, time_range, tlp,
         ))
 
     return claims
@@ -386,6 +374,7 @@ def _claims_actor_pattern(
     evidence_ids: list[str],
     cov_status: str,
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Self-directed vs cross-actor claim."""
     if not evidence_events:
@@ -417,7 +406,7 @@ def _claims_actor_pattern(
     if self_directed_count > 0 and not cross_actor_events:
         claims.append(Claim(
             id=generate_ulid(),
-            tlp="AMBER",
+            tlp=tlp,
             statement=f"All {self_directed_count} evidence event(s) are "
                       f"self-directed activity",
             polarity="neutral",
@@ -437,7 +426,7 @@ def _claims_actor_pattern(
             )
         claims.append(Claim(
             id=generate_ulid(),
-            tlp="AMBER",
+            tlp=tlp,
             statement=f"Cross-actor activity: {len(cross_actor_events)} event(s) "
                       f"with actors {sorted(actors)} targeting "
                       f"principals {sorted(targets - actors)}",
@@ -451,7 +440,7 @@ def _claims_actor_pattern(
         if self_directed_count > 0:
             claims.append(Claim(
                 id=generate_ulid(),
-                tlp="AMBER",
+                tlp=tlp,
                 statement=f"{self_directed_count} self-directed event(s) alongside "
                           f"cross-actor activity",
                 polarity="neutral",
@@ -471,6 +460,7 @@ def _claims_credential_targeting(
     target_to_principal: dict[str, str],
     evidence_ids: list[str],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Credential-targeted event claims (reset, enroll, revoke).
 
@@ -511,7 +501,7 @@ def _claims_credential_targeting(
         if is_cross_account:
             claims.append(Claim(
                 id=generate_ulid(),
-                tlp="AMBER",
+                tlp=tlp,
                 statement=f"Cross-account credential {verb}: {actor_id} "
                           f"{verb} credential owned by {owner_str} at {evt['ts']}",
                 polarity="neutral",
@@ -524,7 +514,7 @@ def _claims_credential_targeting(
         else:
             claims.append(Claim(
                 id=generate_ulid(),
-                tlp="AMBER",
+                tlp=tlp,
                 statement=f"Credential {verb}: {actor_id} {verb} own credential "
                           f"at {evt['ts']}",
                 polarity="neutral",
@@ -544,6 +534,7 @@ def _claims_ip_pattern(
     evidence_ids: list[str],
     cov_status: str,
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """IP analysis claims derived from all_events."""
     # Build actor -> IPs mapping
@@ -558,7 +549,7 @@ def _claims_ip_pattern(
     if not actor_ips:
         return [Claim(
             id=generate_ulid(),
-            tlp="AMBER",
+            tlp=tlp,
             statement="No source IP context available in events",
             polarity="neutral",
             confidence=0.5,
@@ -577,7 +568,7 @@ def _claims_ip_pattern(
         ip = next(iter(all_ips))
         claims.append(Claim(
             id=generate_ulid(),
-            tlp="AMBER",
+            tlp=tlp,
             statement=f"All activity from single source IP ({ip})",
             polarity="neutral",
             confidence=0.9 if cov_status == "complete" else 0.5,
@@ -598,7 +589,7 @@ def _claims_ip_pattern(
             for ip, actors in shared_ips.items():
                 claims.append(Claim(
                     id=generate_ulid(),
-                    tlp="AMBER",
+                    tlp=tlp,
                     statement=f"Shared source IP {ip} across actors: "
                               f"{sorted(actors)}",
                     polarity="neutral",
@@ -614,7 +605,7 @@ def _claims_ip_pattern(
             if len(ips) > 1:
                 claims.append(Claim(
                     id=generate_ulid(),
-                    tlp="AMBER",
+                    tlp=tlp,
                     statement=f"Actor {actor} observed from {len(ips)} IPs: "
                               f"{sorted(ips)}",
                     polarity="neutral",
@@ -639,6 +630,7 @@ def _claims_lifecycle(
     evidence_events: list[dict],
     evidence_ids: list[str],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Account lifecycle claims (create, delete, disable)."""
     lifecycle_actions = {"auth.account.create", "auth.account.delete", "auth.account.disable"}
@@ -655,7 +647,7 @@ def _claims_lifecycle(
 
         claims.append(Claim(
             id=generate_ulid(),
-            tlp="AMBER",
+            tlp=tlp,
             statement=f"Account {verb}: {actor_id} {verb}d {', '.join(target_ids)} "
                       f"at {evt['ts']}",
             polarity="neutral",
@@ -675,6 +667,7 @@ def _claims_privilege(
     target_to_principal: dict[str, str],
     evidence_ids: list[str],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Privilege change claims."""
     focal_ids = set(focal.focal_ids)
@@ -695,7 +688,7 @@ def _claims_privilege(
         if outcome == "failed":
             claims.append(Claim(
                 id=generate_ulid(),
-                tlp="AMBER",
+                tlp=tlp,
                 statement=f"Failed privilege grant: {actor_id} attempted "
                           f"to grant {role} to {', '.join(target_ids)} at {evt['ts']}",
                 polarity="neutral",
@@ -709,7 +702,7 @@ def _claims_privilege(
             # Self-grant
             claims.append(Claim(
                 id=generate_ulid(),
-                tlp="AMBER",
+                tlp=tlp,
                 statement=f"Self-grant: {actor_id} granted {role} to "
                           f"self at {evt['ts']}",
                 polarity="neutral",
@@ -722,7 +715,7 @@ def _claims_privilege(
         else:
             claims.append(Claim(
                 id=generate_ulid(),
-                tlp="AMBER",
+                tlp=tlp,
                 statement=f"Privilege grant: {actor_id} granted {role} to "
                           f"{', '.join(target_ids)} at {evt['ts']}",
                 polarity="neutral",
@@ -740,6 +733,7 @@ def _claims_temporal_clustering(
     evidence_events: list[dict],
     evidence_ids: list[str],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Detect sequences of 3+ evidence events within 10 minutes."""
     if len(evidence_events) < 3:
@@ -756,11 +750,11 @@ def _claims_temporal_clustering(
             cluster.append(evt)
         else:
             if len(cluster) >= 3:
-                claims.append(_make_cluster_claim(cluster, evidence_ids, time_range))
+                claims.append(_make_cluster_claim(cluster, evidence_ids, time_range, tlp))
             cluster = [evt]
 
     if len(cluster) >= 3:
-        claims.append(_make_cluster_claim(cluster, evidence_ids, time_range))
+        claims.append(_make_cluster_claim(cluster, evidence_ids, time_range, tlp))
 
     return claims
 
@@ -770,13 +764,14 @@ def _make_cluster_claim(
     cluster: list[dict],
     evidence_ids: list[str],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> Claim:
     actions = [e.get("action", "?") for e in cluster]
     first_ts = cluster[0].get("ts", "?")
     last_ts = cluster[-1].get("ts", "?")
     return Claim(
         id=generate_ulid(),
-        tlp="AMBER",
+        tlp=tlp,
         statement=f"Temporal cluster: {len(cluster)} events in rapid succession "
                   f"({first_ts} to {last_ts}): {', '.join(actions)}",
         polarity="neutral",
@@ -791,6 +786,7 @@ def _claims_failed_outcomes(
     evidence_events: list[dict],
     evidence_ids: list[str],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Claims for events with outcome == failed."""
     failed = [e for e in evidence_events if e.get("outcome") == "failed"]
@@ -803,7 +799,7 @@ def _claims_failed_outcomes(
         target_ids = [t["target_entity_id"] for t in evt.get("targets", [])]
         claims.append(Claim(
             id=generate_ulid(),
-            tlp="AMBER",
+            tlp=tlp,
             statement=f"Failed action: {evt['action']} by {actor_id} "
                       f"targeting {', '.join(target_ids)} at {evt['ts']}",
             polarity="neutral",
@@ -821,6 +817,7 @@ def _claims_coverage(
     cov_envelope: dict,
     evidence_ids: list[str],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Coverage claim if not complete."""
     cov_status = cov_envelope["coverage_report"]["overall_status"]
@@ -829,7 +826,7 @@ def _claims_coverage(
 
     return [Claim(
         id=generate_ulid(),
-        tlp="AMBER",
+        tlp=tlp,
         statement=f"Coverage is {cov_status} -- findings are constrained "
                   f"by data gaps",
         polarity="neutral",
@@ -844,6 +841,7 @@ def _claims_from_aggregated_facts(
     aggregated_facts: list,
     evidence_items: list[EvidenceItem],
     time_range: TimeRange,
+    tlp: str = "AMBER",
 ) -> list[Claim]:
     """Convert EvidenceFacts into Claims with precise evidence backing."""
     # Build event_id -> set[evidence_item_id] mapping
@@ -865,7 +863,7 @@ def _claims_from_aggregated_facts(
 
         claims.append(Claim(
             id=generate_ulid(),
-            tlp="AMBER",
+            tlp=tlp,
             statement=fact.summary,
             polarity="neutral",
             confidence=fact.confidence,
@@ -1071,6 +1069,7 @@ def build_hypothesis(
     confidence: ScoreBand,
     gap_assessments: list[GapAssessment],
     investigation_question: str,
+    tlp: str = "AMBER",
 ) -> Hypothesis:
     """Construct the final Hypothesis from scoring result and gap assessment.
 
@@ -1096,7 +1095,7 @@ def build_hypothesis(
 
     return Hypothesis(
         id=generate_ulid(),
-        tlp="AMBER",
+        tlp=tlp,
         iq_id=investigation_question,
         statement=scoring_result.statement,
         likelihood=scoring_result.likelihood,

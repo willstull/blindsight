@@ -383,14 +383,25 @@ def ingest_domain_response(
     logger: logging.Logger,
     conn: duckdb.DuckDBPyConnection,
     response: dict,
+    case_id: str | None = None,
 ) -> Result[dict, Exception]:
-    """Ingest a domain tool response (entities, events, relationships, coverage).
+    """Ingest a domain tool response into the case store.
 
-    Processes in FK order: entities -> events -> relationships -> coverage.
+    Handles standard domain objects (entities, events, relationships, coverage)
+    and analysis artifacts (evidence_items, claims, hypotheses). Also supports
+    a case_metadata key that updates the investigation_metadata column on the
+    case record (requires case_id).
+
+    Processes in FK order: entities -> events -> relationships -> coverage ->
+    evidence_items -> claims -> hypotheses -> case_metadata.
     Returns summary counts.
     """
     try:
-        counts = {"entities": 0, "events": 0, "relationships": 0, "coverage_reports": 0}
+        counts: dict = {
+            "entities": 0, "events": 0, "relationships": 0,
+            "coverage_reports": 0, "evidence_items": 0, "claims": 0,
+            "hypotheses": 0,
+        }
 
         # Parse and ingest entities
         raw_entities = response.get("entities", [])
@@ -427,6 +438,44 @@ def ingest_domain_response(
             if result.is_err():
                 return Err(result.err())
             counts["coverage_reports"] = 1
+
+        # Parse and ingest evidence items
+        raw_evidence = response.get("evidence_items", [])
+        if raw_evidence:
+            items = [EvidenceItem.model_validate(e) if isinstance(e, dict) else e for e in raw_evidence]
+            result = ingest_evidence_items(logger, conn, items)
+            if result.is_err():
+                return Err(result.err())
+            counts["evidence_items"] = result.ok()
+
+        # Parse and ingest claims
+        raw_claims = response.get("claims", [])
+        if raw_claims:
+            claims_list = [Claim.model_validate(c) if isinstance(c, dict) else c for c in raw_claims]
+            result = ingest_claims(logger, conn, claims_list)
+            if result.is_err():
+                return Err(result.err())
+            counts["claims"] = result.ok()
+
+        # Parse and ingest hypotheses
+        raw_hypotheses = response.get("hypotheses", [])
+        if raw_hypotheses:
+            hyps = [Hypothesis.model_validate(h) if isinstance(h, dict) else h for h in raw_hypotheses]
+            result = ingest_hypotheses(logger, conn, hyps)
+            if result.is_err():
+                return Err(result.err())
+            counts["hypotheses"] = result.ok()
+
+        # Update case metadata (requires case_id)
+        raw_metadata = response.get("case_metadata")
+        if raw_metadata:
+            if case_id is None:
+                return Err(ValueError("case_metadata requires case_id parameter"))
+            from src.services.case.store import update_case_metadata
+            result = update_case_metadata(logger, conn, case_id, raw_metadata)
+            if result.is_err():
+                return Err(result.err())
+            counts["case_metadata"] = 1
 
         logger.info("Ingested domain response", extra=counts)
         return Ok(counts)

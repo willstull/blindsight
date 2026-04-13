@@ -63,6 +63,7 @@ def _event(
     ts: str = "2026-01-15T10:00:00Z",
     outcome: str = "succeeded",
     source_ip: str | None = None,
+    domain: str = "identity",
 ):
     targets = [{"target_entity_id": tid} for tid in (target_ids or [])]
     context = {}
@@ -70,6 +71,7 @@ def _event(
         context["source_ip"] = source_ip
     return {
         "id": f"evt_{action}_{ts}",
+        "domain": domain,
         "action": action,
         "actor": {"actor_entity_id": actor_id},
         "targets": targets,

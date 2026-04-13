@@ -208,12 +208,21 @@ CREATE TABLE cases (
     mttr_seconds DOUBLE,              -- Mean time to resolve
     hypothesis_ids JSON,               -- Array of hypothesis IDs
     tags JSON,                         -- Array of tag strings
+    investigation_metadata JSON,       -- Investigation context (scenario, focal, rationale)
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_cases_status ON cases(status);
 CREATE INDEX idx_cases_severity ON cases(severity);
 ```
+
+The `investigation_metadata` column (added in migration 003) stores:
+- `scenario_name`, `investigation_question`
+- `time_range_start`, `time_range_end`
+- `focal_principals`, `focal_primary`
+- `domains_queried`
+- `likelihood_rationale`, `confidence_rationale`
+- `total_events_evaluated`
 
 ### tool_calls
 

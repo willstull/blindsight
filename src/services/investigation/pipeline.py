@@ -298,6 +298,8 @@ async def run_investigation(
     use_llm: bool = False,
     llm_model: str | None = None,
     cases_dir: str | None = None,
+    tlp: str = "AMBER",
+    severity: str = "sev3",
 ) -> InvestigationReport:
     """Run a bounded investigation against a scenario via MCP subprocesses.
 
@@ -313,6 +315,8 @@ async def run_investigation(
         use_llm: If True, use LLM for gap assessment and narrative.
         llm_model: Model identifier for LLM mode.
         cases_dir: Directory for case DB files. If None, uses a temp directory.
+        tlp: TLP marking for the case (default AMBER).
+        severity: Severity level for the case (default sev3).
 
     Returns:
         InvestigationReport with hypothesis, gaps, and steps.
@@ -374,8 +378,8 @@ async def run_investigation(
 
         case_result = await call_tool(case_session, "create_case_tool", {
             "title": manifest["description"],
-            "tlp": "AMBER",
-            "severity": "sev3",
+            "tlp": tlp,
+            "severity": severity,
             "tags": manifest["tags"],
         }, logger)
         tool_call_count += 1
@@ -400,8 +404,8 @@ async def run_investigation(
                 "tool_name": "create_case_tool",
                 "request_params": {
                     "title": manifest["description"],
-                    "tlp": "AMBER",
-                    "severity": "sev3",
+                    "tlp": tlp,
+                    "severity": severity,
                     "tags": manifest["tags"],
                 },
                 "response_status": case_result.get("status", "unknown"),
@@ -747,7 +751,7 @@ async def run_investigation(
         # -- Step 9: Score --
         step9 = InvestigationStep(stage="Score", description="Build evidence items, claims, and score likelihood")
 
-        evidence_items = build_evidence_items(evidence_events, merged_cov_envelope, time_range)
+        evidence_items = build_evidence_items(evidence_events, merged_cov_envelope, time_range, tlp=tlp)
 
         # Aggregate evidence before claim building
         aggregated_facts = aggregate_evidence(
@@ -757,7 +761,7 @@ async def run_investigation(
         claims = build_claims(
             evidence_events, all_events, focal,
             evidence_items, merged_cov_envelope, time_range, all_relationships,
-            aggregated_facts=aggregated_facts,
+            aggregated_facts=aggregated_facts, tlp=tlp,
         )
         scoring_result = score_and_classify(
             claims, evidence_events, question,
@@ -804,6 +808,7 @@ async def run_investigation(
             confidence=confidence,
             gap_assessments=gap_assessments,
             investigation_question=question,
+            tlp=tlp,
         )
 
         step9b.key_findings.append(f"Confidence: {confidence}")
@@ -822,6 +827,33 @@ async def run_investigation(
             narrative = await _llm_narrative(hyp, scoring_result.scored_claims, merged_cov_envelope, question, llm_model)
         else:
             narrative = build_narrative(hyp, scoring_result.scored_claims, merged_cov_envelope)
+
+        # -- Step 11: Persist analysis artifacts --
+        # NOT gated by _check_budget() -- bookkeeping that must always happen.
+        try:
+            await call_tool(case_session, "ingest_records", {
+                "case_id": case_id,
+                "domain_response": {
+                    "evidence_items": [ei.model_dump() for ei in evidence_items],
+                    "claims": [c.model_dump() for c in scoring_result.scored_claims],
+                    "hypotheses": [hyp.model_dump()],
+                    "case_metadata": {
+                        "scenario_name": scenario_name,
+                        "investigation_question": question,
+                        "time_range_start": time_range.start,
+                        "time_range_end": time_range.end,
+                        "focal_principals": focal_ids,
+                        "focal_primary": focal.primary_id,
+                        "domains_queried": manifest.get("domains", []),
+                        "likelihood_rationale": narrative.likelihood_rationale,
+                        "confidence_rationale": narrative.confidence_rationale,
+                        "total_events_evaluated": total_events_evaluated,
+                    },
+                },
+            }, logger)
+            tool_call_count += 1
+        except Exception:
+            logger.warning("Failed to persist analysis artifacts to case store")
 
         # Merge coverage gaps with truncation gaps
         all_gaps = gaps + narrative.gaps

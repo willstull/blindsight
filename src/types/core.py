@@ -10,6 +10,15 @@ from pydantic import BaseModel, Field
 
 ScoreBand = Literal["low", "medium", "high"]
 GapRelevance = Literal["critical", "relevant", "minor", "irrelevant"]
+TLPLevel = Literal["CLEAR", "GREEN", "AMBER", "AMBER+STRICT", "RED"]
+
+TLP_ORDER: dict[TLPLevel, int] = {
+    "CLEAR": 0,
+    "GREEN": 1,
+    "AMBER": 2,
+    "AMBER+STRICT": 3,
+    "RED": 4,
+}
 
 
 class Ref(BaseModel):

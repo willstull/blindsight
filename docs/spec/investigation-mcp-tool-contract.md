@@ -9,6 +9,7 @@ The investigation server exposes three categories of tools with different respon
 1. **Orchestration tools** (`run_investigation_tool`, `describe_scenario`): return investigation-native payloads.
 2. **Case discovery** (`list_cases`): returns an investigation-native aggregate payload.
 3. **Follow-up query tools** (`get_case_timeline`, `query_case_events`, `query_case_entities`, `query_case_neighbors`, `get_case_tool_call_history`): transparent proxies returning the case server's envelope unchanged. The envelope contains `status`, `domain: "case"`, `request_id`, `coverage_report`, plus tool-specific payload keys documented per tool below.
+4. **Report generation** (`generate_report`): collects facts from the case store via MCP subprocess, renders a Markdown incident report with optional LLM prose.
 
 See ADR-0008 for the rationale behind this design.
 
@@ -179,3 +180,50 @@ Get tool call audit history for a case. Proxies to the case server's `get_tool_c
 **Success response:** Case server envelope with `results` key.
 
 **Error codes:** `invalid_case_id`, `case_not_found`, plus any case server errors.
+
+---
+
+## generate_report
+
+Generate a Markdown incident report from a completed investigation case. Collects facts from the case store, renders deterministic sections (NIST SP 800-61 Rev. 3 / CSF 2.0 aligned), and optionally generates LLM prose for human-readable sections.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| case_id | string | yes | Case identifier (must have a completed investigation) |
+| use_llm | boolean | no | Use LLM for narrative prose sections (default false) |
+| llm_model | string | no | Model identifier for LLM mode |
+
+**Success response:**
+```json
+{
+  "status": "success",
+  "report": "# Incident Report: ...\n\n## 1. Executive Summary\n...",
+  "facts_summary": {
+    "case_id": "string",
+    "scenario_name": "string",
+    "likelihood": "low|medium|high",
+    "confidence": "low|medium|high",
+    "total_events": 42,
+    "claims_count": 8,
+    "evidence_items_count": 15,
+    "timeline_events_count": 38,
+    "transaction_count": 3,
+    "transaction_total": 4500.00
+  }
+}
+```
+
+**Report sections:**
+1. Executive Summary
+2. Scope
+3. Key Findings
+4. Timeline
+5. Evidence Assessment
+6. Hypothesis Assessment
+7. Impact and Exposure
+8. Recommended Follow-Up
+9. Reproducibility Appendix
+
+**Error codes:** `invalid_case_id`, `case_not_found`, `no_facts`

@@ -141,6 +141,8 @@ def create_investigation_server(
         max_events: int = 2000,
         use_llm: bool = False,
         llm_model: Optional[str] = None,
+        tlp: str = "AMBER",
+        severity: str = "sev3",
     ) -> dict:
         """Run a bounded investigation against a scenario.
 
@@ -154,6 +156,8 @@ def create_investigation_server(
             max_events: Max events per search (default 2000).
             use_llm: Use LLM for gap assessment and narrative.
             llm_model: Model identifier for LLM mode.
+            tlp: TLP marking for the case (default AMBER). Values: CLEAR, GREEN, AMBER, AMBER+STRICT, RED.
+            severity: Severity level (default sev3). Values: sev0, sev1, sev2, sev3, sev4.
 
         Returns an InvestigationReport with hypothesis, scores, gaps, and steps.
         """
@@ -179,6 +183,8 @@ def create_investigation_server(
             use_llm=use_llm,
             llm_model=llm_model,
             cases_dir=str(cases_dir),
+            tlp=tlp,
+            severity=severity,
         )
         return report.model_dump(exclude_none=True)
 
@@ -385,6 +391,78 @@ def create_investigation_server(
             cases_dir, case_id, "get_tool_call_history_tool",
             {"case_id": case_id, "limit": limit}, logger,
         )
+
+    @server.tool()
+    async def generate_report(
+        case_id: str,
+        use_llm: bool = False,
+        llm_model: Optional[str] = None,
+    ) -> dict:
+        """Generate a Markdown incident report from a completed investigation case.
+
+        Collects facts from the case store, renders deterministic sections,
+        and optionally generates LLM prose for human-readable sections.
+
+        Args:
+            case_id: Case identifier (must have a completed investigation).
+            use_llm: Use LLM for narrative prose sections.
+            llm_model: Model identifier for LLM mode.
+
+        Returns a dict with 'report' (Markdown string) and 'facts_summary'.
+        """
+        from src.services.investigation.reporting import (
+            build_report_facts, render_report, generate_report_prose,
+        )
+
+        # Fetch facts from case store via MCP subprocess
+        facts_result = await _call_case_tool(
+            cases_dir, case_id, "get_report_facts_tool",
+            {"case_id": case_id}, logger,
+        )
+
+        if facts_result.get("status") == "error":
+            return facts_result
+
+        results = facts_result.get("results", [])
+        if not results:
+            return {
+                "status": "error",
+                "error": {
+                    "code": "no_facts",
+                    "message": f"No report facts found for case '{case_id}'.",
+                },
+            }
+
+        facts_payload = results[0]
+        facts = build_report_facts(facts_payload)
+
+        # Optionally generate LLM prose
+        prose = None
+        if use_llm:
+            prose = await generate_report_prose(facts, model=llm_model)
+
+        report_md = render_report(facts, prose)
+
+        return {
+            "status": "success",
+            "report": report_md,
+            "facts_summary": {
+                "case_id": facts.case_id,
+                "scenario_name": facts.scenario_name,
+                "likelihood": facts.likelihood,
+                "confidence": facts.confidence,
+                "total_events": facts.total_events_evaluated,
+                "claims_count": (
+                    len(facts.supporting_claims)
+                    + len(facts.contradicting_claims)
+                    + len(facts.neutral_claims)
+                ),
+                "evidence_items_count": len(facts.evidence_items),
+                "timeline_events_count": len(facts.timeline_events),
+                "transaction_count": facts.impact.transaction_count,
+                "transaction_total": facts.impact.transaction_total,
+            },
+        }
 
     logger.info("Investigation MCP server configured")
     return server

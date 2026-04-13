@@ -126,7 +126,7 @@ class TestFollowUpTools:
     """Tests for the follow-up case query tools (ADR-0008)."""
 
     async def test_new_tools_listed(self):
-        """Server exposes all 8 tools (2 original + 6 new)."""
+        """Server exposes all 9 tools (2 original + 6 follow-up + 1 report)."""
         async with await _connect() as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
@@ -141,6 +141,7 @@ class TestFollowUpTools:
                     "query_case_entities",
                     "query_case_neighbors",
                     "get_case_tool_call_history",
+                    "generate_report",
                 }
                 assert expected == names, f"Missing tools: {expected - names}"
 

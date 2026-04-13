@@ -12,6 +12,11 @@ _ENTITY_JSON_COLS = ("refs", "attributes")
 EVENT_JSON_COLS = ("actor", "targets", "raw_refs", "context", "related_entity_ids")
 _RELATIONSHIP_JSON_COLS = ("evidence_refs",)
 _TOOL_CALL_JSON_COLS = ("request_params", "response_body")
+_EVIDENCE_JSON_COLS = ("raw_refs", "related_entity_ids", "related_event_ids")
+_CLAIM_JSON_COLS = ("backed_by_evidence_ids", "subject_entity_ids", "derived_from_claim_ids", "assumption_ids")
+_HYPOTHESIS_JSON_COLS = ("supporting_claim_ids", "contradicting_claim_ids", "gaps", "gap_assessments", "next_evidence_requests")
+_COVERAGE_JSON_COLS = ("sources", "missing_fields", "quality_flags")
+_CASE_JSON_COLS = ("hypothesis_ids", "tags", "investigation_metadata")
 
 MAX_LIMIT = 2000
 
@@ -246,4 +251,133 @@ def get_tool_call_history(
         return Ok(rows_to_dicts(conn, rows, _TOOL_CALL_JSON_COLS))
     except Exception as e:
         logger.error("Tool call history query failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def query_hypotheses(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+    iq_id: Optional[str] = None,
+) -> Result[list[dict], Exception]:
+    """Query hypotheses, optionally filtered by investigation question ID."""
+    try:
+        if iq_id:
+            rows = conn.execute(
+                "SELECT * FROM hypotheses WHERE iq_id = ? ORDER BY created_at DESC",
+                [iq_id],
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM hypotheses ORDER BY created_at DESC"
+            ).fetchall()
+        return Ok(rows_to_dicts(conn, rows, _HYPOTHESIS_JSON_COLS))
+    except Exception as e:
+        logger.error("Hypothesis query failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def query_claims(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+    polarity: Optional[str] = None,
+) -> Result[list[dict], Exception]:
+    """Query claims, optionally filtered by polarity."""
+    try:
+        if polarity:
+            rows = conn.execute(
+                "SELECT * FROM claims WHERE polarity = ? ORDER BY confidence DESC",
+                [polarity],
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM claims ORDER BY confidence DESC"
+            ).fetchall()
+        return Ok(rows_to_dicts(conn, rows, _CLAIM_JSON_COLS))
+    except Exception as e:
+        logger.error("Claim query failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def query_evidence_items(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+) -> Result[list[dict], Exception]:
+    """Query all evidence items in the case."""
+    try:
+        rows = conn.execute(
+            "SELECT * FROM evidence_items ORDER BY collected_at ASC"
+        ).fetchall()
+        return Ok(rows_to_dicts(conn, rows, _EVIDENCE_JSON_COLS))
+    except Exception as e:
+        logger.error("Evidence item query failed", extra={"error": str(e)})
+        return Err(e)
+
+
+def get_report_facts(
+    logger: logging.Logger,
+    conn: duckdb.DuckDBPyConnection,
+    case_id: str,
+) -> Result[dict, Exception]:
+    """Collect all report facts from the case store in one call.
+
+    Returns a dict payload with: case, hypothesis, claims, evidence_items,
+    timeline, entities, coverage_reports, tool_call_history.
+    """
+    try:
+        # Case metadata
+        from src.services.case.store import get_case
+        case_result = get_case(logger, conn, case_id)
+        if case_result.is_err():
+            return Err(case_result.err())
+        case_data = case_result.ok()
+
+        # Hypotheses
+        hyp_result = query_hypotheses(logger, conn)
+        if hyp_result.is_err():
+            return Err(hyp_result.err())
+
+        # Claims (all polarities)
+        claims_result = query_claims(logger, conn)
+        if claims_result.is_err():
+            return Err(claims_result.err())
+
+        # Evidence items
+        evidence_result = query_evidence_items(logger, conn)
+        if evidence_result.is_err():
+            return Err(evidence_result.err())
+
+        # Timeline (all events, chronological)
+        timeline_result = get_timeline(logger, conn)
+        if timeline_result.is_err():
+            return Err(timeline_result.err())
+
+        # All entities
+        entity_result = query_entities(logger, conn, limit=MAX_LIMIT)
+        if entity_result.is_err():
+            return Err(entity_result.err())
+
+        # Coverage reports
+        cov_rows = conn.execute(
+            "SELECT * FROM coverage_reports ORDER BY created_at ASC"
+        ).fetchall()
+        coverage_reports = rows_to_dicts(conn, cov_rows, _COVERAGE_JSON_COLS)
+
+        # Tool call history
+        tc_result = get_tool_call_history(logger, conn, case_id, limit=MAX_LIMIT)
+        if tc_result.is_err():
+            return Err(tc_result.err())
+
+        facts = {
+            "case": case_data,
+            "hypotheses": hyp_result.ok(),
+            "claims": claims_result.ok(),
+            "evidence_items": evidence_result.ok(),
+            "timeline": timeline_result.ok(),
+            "entities": entity_result.ok(),
+            "coverage_reports": coverage_reports,
+            "tool_call_history": tc_result.ok(),
+        }
+        return Ok(facts)
+    except Exception as e:
+        logger.error("Report facts collection failed", extra={"error": str(e)})
         return Err(e)
