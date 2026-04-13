@@ -14,8 +14,13 @@ from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 from src.services.investigation.mcp_client import open_mcp_session, call_tool
-from src.services.investigation.pipeline import run_investigation
+from functools import partial
+
+from src.services.investigation.pipeline import run_investigation as _run_investigation
 from tests.conftest import FIXTURES_DIR
+
+# Tests run without LLM -- deterministic and no API key required
+run_investigation = partial(_run_investigation, use_llm=False)
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

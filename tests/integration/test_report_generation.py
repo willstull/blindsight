@@ -9,7 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from src.services.investigation.pipeline import run_investigation
+from functools import partial
+
+from src.services.investigation.pipeline import run_investigation as _run_investigation
+
+# Tests run without LLM -- deterministic and no API key required
+run_investigation = partial(_run_investigation, use_llm=False)
 from src.services.case.store import open_case_db
 from src.services.case.query import (
     get_report_facts, query_hypotheses, query_claims,

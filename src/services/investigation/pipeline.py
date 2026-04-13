@@ -295,7 +295,7 @@ async def run_investigation(
     principal_hint: str | None = None,
     max_tool_calls: int = 40,
     max_events: int = 2000,
-    use_llm: bool = False,
+    use_llm: bool = True,
     llm_model: str | None = None,
     cases_dir: str | None = None,
     tlp: str = "AMBER",

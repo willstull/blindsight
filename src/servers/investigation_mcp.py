@@ -139,7 +139,7 @@ def create_investigation_server(
         principal_hint: Optional[str] = None,
         max_tool_calls: int = 40,
         max_events: int = 2000,
-        use_llm: bool = False,
+        use_llm: bool = True,
         llm_model: Optional[str] = None,
         tlp: str = "AMBER",
         severity: str = "sev3",
@@ -395,7 +395,7 @@ def create_investigation_server(
     @server.tool()
     async def generate_report(
         case_id: str,
-        use_llm: bool = False,
+        use_llm: bool = True,
         llm_model: Optional[str] = None,
     ) -> dict:
         """Generate a Markdown incident report from a completed investigation case.
@@ -469,8 +469,10 @@ def create_investigation_server(
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
     from src.utils.logging import get_stderr_logger
 
+    load_dotenv()
     log = get_stderr_logger("investigation_mcp")
     _cli_cases_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     server = create_investigation_server(log, cases_dir=_cli_cases_dir)
