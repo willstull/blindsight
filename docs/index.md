@@ -31,14 +31,6 @@ Stable interfaces and invariants:
 - [ADR-0010: Application Domain Server](adr/ADR-0010-app-domain-server.md)
 - [ADR-0011: Incident Report Generation](adr/ADR-0011-incident-report-generation.md)
 
-## Project Information
+## Reference
 
-- [Project Boundary](project-boundary.md) - Scope and success criteria
-- [Roadmap](roadmap.md) - Milestones and outcomes
-- [Status](status.md) - Current state and next actions
-- [Appendix](appendix.md) - Comprehensive list of terms
-
-## Evaluation
-
-- [Replay Scenarios](replay-scenarios.md) - 12 scenario families (48 test cases)
-- [Live Integration Framework](live-integration-framework.md) - Decision framework for live sources
+- [Appendix](appendix.md) - Terms and definitions
