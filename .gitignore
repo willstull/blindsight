@@ -7,3 +7,6 @@ __pycache__/
 .env
 docs/notes/
 .blindsight_cases/
+dist/
+build/
+*.egg-info/

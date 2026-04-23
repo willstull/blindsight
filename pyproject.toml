@@ -1,29 +1,52 @@
-[tool.poetry]
+[project]
 name = "blindsight"
-version = "0.1.0"
-description = "Hypothesis-driven incident investigation system"
-authors = ["Will Stull <willstull17@gmail.com>"]
+version = "0.0.1"
+description = "Agentic incident investigation framework that separates what the evidence suggests from what the data can verify."
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Will Stull", email = "willstull17@gmail.com" },
+]
+keywords = ["mcp", "incident-response", "security", "investigation", "agentic", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = []
 
-[tool.poetry.dependencies]
-python = "^3.12"
-result = "^0.17.0"
-python-ulid = "^2.7.0"
-mcp = "^1.26.0"
-pyyaml = "^6.0"
-structlog = "^24.0"
-duckdb = "^1.4.4"
-python-dotenv = "^1.2.2"
+[project.optional-dependencies]
+dev = [
+    "result>=0.17.0,<0.18.0",
+    "python-ulid>=2.7.0,<3.0.0",
+    "mcp>=1.26.0,<2.0.0",
+    "pyyaml>=6.0,<7.0",
+    "structlog>=24.0,<25.0",
+    "duckdb>=1.4.4,<2.0.0",
+    "python-dotenv>=1.2.2,<2.0.0",
+    "pydantic-ai-slim[anthropic]>=0.2.0,<0.3.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "prompt-toolkit>=3.0.52",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0"
-pytest-asyncio = "^0.24"
-prompt-toolkit = "^3.0.52"
+[project.urls]
+Homepage = "https://github.com/willstull/blindsight"
+Repository = "https://github.com/willstull/blindsight"
+Issues = "https://github.com/willstull/blindsight/issues"
 
-[tool.poetry.group.mcp.dependencies]
-pydantic-ai-slim = {extras = ["anthropic"], version = "^0.2.0"}
-pydantic = "^2.0.0"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/blindsight"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "src"]
@@ -37,7 +60,3 @@ filterwarnings = [
 markers = [
     "external_api: tests that call external APIs (exclude in CI)"
 ]
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
