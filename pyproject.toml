@@ -18,10 +18,7 @@ classifiers = [
     "Topic :: Security",
     "Topic :: System :: Systems Administration",
 ]
-dependencies = []
-
-[project.optional-dependencies]
-dev = [
+dependencies = [
     "result>=0.17.0,<0.18.0",
     "python-ulid>=2.7.0,<3.0.0",
     "mcp>=1.26.0,<2.0.0",
@@ -31,10 +28,21 @@ dev = [
     "python-dotenv>=1.2.2,<2.0.0",
     "pydantic-ai-slim[anthropic]>=0.2.0,<0.3.0",
     "pydantic>=2.0.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "prompt-toolkit>=3.0.52",
 ]
+
+[project.scripts]
+blindsight = "blindsight.cli:main"
+blindsight-investigation-mcp = "blindsight.servers.investigation_mcp:main"
+blindsight-identity-mcp = "blindsight.servers.identity_mcp:main"
+blindsight-case-mcp = "blindsight.servers.case_mcp:main"
+blindsight-app-mcp = "blindsight.servers.app_mcp:main"
 
 [project.urls]
 Homepage = "https://github.com/willstull/blindsight"

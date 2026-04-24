@@ -200,24 +200,32 @@ def create_app_server(
     return server
 
 
-if __name__ == "__main__":
+def main() -> None:
+    import argparse
+
+    from blindsight.services.app.factory import create_app_integration
+    from blindsight.services.identity.factory import IntegrationMode
+
+    parser = argparse.ArgumentParser(prog="blindsight-app-mcp")
+    parser.add_argument("--scenario-path", type=Path, default=None)
+    parser.add_argument("scenario_path_pos", nargs="?", type=Path, default=None,
+                        help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    scenario_path = args.scenario_path or args.scenario_path_pos
+
     log = logging.getLogger("app_mcp")
     log.setLevel(logging.INFO)
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
     log.addHandler(handler)
 
-    if len(sys.argv) < 2:
-        log.error("Usage: python -m blindsight.servers.app_mcp <scenario_path>")
+    if scenario_path is None:
+        log.error("Usage: blindsight-app-mcp --scenario-path <path>")
         sys.exit(1)
-
-    scenario_path = Path(sys.argv[1])
     if not scenario_path.exists():
         log.error(f"Scenario path does not exist: {scenario_path}")
         sys.exit(1)
-
-    from blindsight.services.app.factory import create_app_integration
-    from blindsight.services.identity.factory import IntegrationMode
 
     integration = create_app_integration(
         mode=IntegrationMode.REPLAY,
@@ -226,5 +234,8 @@ if __name__ == "__main__":
     )
     server = create_app_server(integration, log)
     log.info("App MCP server configured")
-    print("App MCP server configured")
     server.run()
+
+
+if __name__ == "__main__":
+    main()

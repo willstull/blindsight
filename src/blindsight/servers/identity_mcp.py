@@ -272,27 +272,38 @@ def create_identity_server(
     return server
 
 
-if __name__ == "__main__":
+def main() -> None:
+    import argparse
+
     from blindsight.utils.logging import get_stderr_logger
+    from blindsight.services.identity.factory import (
+        create_identity_integration,
+        IntegrationMode,
+    )
 
-    if len(sys.argv) < 2:
-        print("Usage: python -m blindsight.servers.identity_mcp <scenario_path>", file=sys.stderr)
+    parser = argparse.ArgumentParser(prog="blindsight-identity-mcp")
+    parser.add_argument("--scenario-path", type=Path, default=None)
+    parser.add_argument("scenario_path_pos", nargs="?", type=Path, default=None,
+                        help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    scenario_path = args.scenario_path or args.scenario_path_pos
+    if scenario_path is None:
+        print("Usage: blindsight-identity-mcp --scenario-path <path>", file=sys.stderr)
         sys.exit(1)
-
-    scenario_path = Path(sys.argv[1])
     if not scenario_path.exists():
         print(f"Scenario path not found: {scenario_path}", file=sys.stderr)
         sys.exit(1)
 
     log = get_stderr_logger("identity_mcp")
-
-    from blindsight.services.identity.factory import create_identity_integration, IntegrationMode
-
     integration = create_identity_integration(
         mode=IntegrationMode.REPLAY,
         config={"scenario_path": str(scenario_path)},
         logger=log,
     )
-
     server = create_identity_server(integration, log)
     server.run()
+
+
+if __name__ == "__main__":
+    main()

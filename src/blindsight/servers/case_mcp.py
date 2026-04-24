@@ -413,14 +413,26 @@ def create_case_server(cases_dir: Path, logger: logging.Logger) -> FastMCP:
     return server
 
 
-if __name__ == "__main__":
+def main() -> None:
+    import argparse
+
     from blindsight.utils.logging import get_stderr_logger
 
-    if len(sys.argv) < 2:
-        print("Usage: python -m blindsight.servers.case_mcp <cases_dir>", file=sys.stderr)
+    parser = argparse.ArgumentParser(prog="blindsight-case-mcp")
+    parser.add_argument("--cases-dir", type=Path, default=None)
+    parser.add_argument("cases_dir_pos", nargs="?", type=Path, default=None,
+                        help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    cases_dir = args.cases_dir or args.cases_dir_pos
+    if cases_dir is None:
+        print("Usage: blindsight-case-mcp --cases-dir <path>", file=sys.stderr)
         sys.exit(1)
 
-    cases_dir = Path(sys.argv[1])
     log = get_stderr_logger("case_mcp")
     server = create_case_server(cases_dir, log)
     server.run()
+
+
+if __name__ == "__main__":
+    main()

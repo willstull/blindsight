@@ -7,7 +7,6 @@ See ADR-0008 for the rationale behind follow-up tools.
 import logging
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -468,12 +467,24 @@ def create_investigation_server(
     return server
 
 
-if __name__ == "__main__":
+def main() -> None:
+    import argparse
+
     from dotenv import load_dotenv
     from blindsight.utils.logging import get_stderr_logger
 
+    parser = argparse.ArgumentParser(prog="blindsight-investigation-mcp")
+    parser.add_argument("--cases-dir", type=Path, default=None)
+    parser.add_argument("cases_dir_pos", nargs="?", type=Path, default=None,
+                        help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
     load_dotenv()
     log = get_stderr_logger("investigation_mcp")
-    _cli_cases_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else None
-    server = create_investigation_server(log, cases_dir=_cli_cases_dir)
+    cases_dir = args.cases_dir or args.cases_dir_pos
+    server = create_investigation_server(log, cases_dir=cases_dir)
     server.run()
+
+
+if __name__ == "__main__":
+    main()
