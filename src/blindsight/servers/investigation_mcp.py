@@ -19,8 +19,8 @@ from blindsight.types.core import TimeRange
 from blindsight.utils.serialization import load_yaml
 
 
-_SCENARIOS_DIR = Path(__file__).parent.parent.parent / "tests" / "fixtures" / "replay" / "scenarios"
-_PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
+_SCENARIOS_DIR = Path(__file__).parent.parent.parent.parent / "tests" / "fixtures" / "replay" / "scenarios"
+_PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent)
 _CASE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
 
 
@@ -109,7 +109,7 @@ async def _call_case_tool(
         }
     async with open_mcp_session(
         "python",
-        [f"{_PROJECT_ROOT}/src/servers/case_mcp.py", str(cases_dir)],
+        [f"{_PROJECT_ROOT}/src/blindsight/servers/case_mcp.py", str(cases_dir)],
         logger,
     ) as session:
         return await call_tool(session, tool_name, arguments, logger)
@@ -125,7 +125,7 @@ def create_investigation_server(
         if env_dir:
             cases_dir = Path(env_dir)
         else:
-            cases_dir = Path(__file__).parent.parent.parent / ".blindsight_cases"
+            cases_dir = Path(__file__).parent.parent.parent.parent / ".blindsight_cases"
     cases_dir.mkdir(parents=True, exist_ok=True)
 
     server = FastMCP("blindsight-investigation-mcp")

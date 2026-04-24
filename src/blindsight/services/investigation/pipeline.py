@@ -31,7 +31,7 @@ from blindsight.types.core import (
 from blindsight.utils.serialization import load_yaml
 
 
-_PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent)
+_PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent.parent)
 
 
 async def _call_and_record(
@@ -344,17 +344,17 @@ async def run_investigation(
 
     identity_cmd = "python"
     identity_args = [
-        f"{_PROJECT_ROOT}/src/servers/identity_mcp.py",
+        f"{_PROJECT_ROOT}/src/blindsight/servers/identity_mcp.py",
         str(scenario_path),
     ]
     case_cmd = "python"
     case_args = [
-        f"{_PROJECT_ROOT}/src/servers/case_mcp.py",
+        f"{_PROJECT_ROOT}/src/blindsight/servers/case_mcp.py",
         tmp_dir,
     ]
     app_cmd = "python"
     app_args = [
-        f"{_PROJECT_ROOT}/src/servers/app_mcp.py",
+        f"{_PROJECT_ROOT}/src/blindsight/servers/app_mcp.py",
         str(scenario_path),
     ]
 
