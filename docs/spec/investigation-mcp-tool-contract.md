@@ -1,6 +1,6 @@
 # Investigation MCP Server -- Tool Contracts
 
-Tool contracts for the investigation orchestration MCP server (`src/servers/investigation_mcp.py`).
+Tool contracts for the investigation orchestration MCP server (`src/blindsight/servers/investigation_mcp.py`).
 
 ## Response Categories
 
