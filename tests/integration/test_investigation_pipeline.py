@@ -5,7 +5,6 @@ data. Tests are deterministic but slower (~3s each due to subprocess startup).
 """
 import json
 import logging
-import os
 import tempfile
 
 import pytest
@@ -21,8 +20,6 @@ from tests.conftest import FIXTURES_DIR
 
 # Tests run without LLM -- deterministic and no API key required
 run_investigation = partial(_run_investigation, use_llm=False)
-
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _logger():
@@ -124,7 +121,7 @@ class TestInvestigationPipeline:
         # Open a fresh case server against the same cases_dir and query history
         async with open_mcp_session(
             "python",
-            [f"{_PROJECT_ROOT}/src/servers/case_mcp.py", cases_dir],
+            ["-m", "blindsight.servers.case_mcp", cases_dir],
             logger,
         ) as case_session:
             history = await call_tool(case_session, "get_tool_call_history_tool", {

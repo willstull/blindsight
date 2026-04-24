@@ -4,16 +4,12 @@ Tests the full MCP transport: launch investigation server via stdio,
 call tools, verify responses parse correctly.
 """
 import json
-import os
 import tempfile
 
 import pytest
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-
-
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 async def _connect(cases_dir: str | None = None):
@@ -23,11 +19,9 @@ async def _connect(cases_dir: str | None = None):
     """
     if cases_dir is None:
         cases_dir = tempfile.mkdtemp(prefix="blindsight_test_inv_")
-    env = {**os.environ, "PYTHONPATH": _PROJECT_ROOT}
     params = StdioServerParameters(
         command="python",
-        args=[f"{_PROJECT_ROOT}/src/servers/investigation_mcp.py", cases_dir],
-        env=env,
+        args=["-m", "blindsight.servers.investigation_mcp", cases_dir],
     )
     return stdio_client(params)
 
@@ -255,7 +249,7 @@ class TestFollowUpTools:
 
         async with open_mcp_session(
             "python",
-            [f"{_PROJECT_ROOT}/src/servers/case_mcp.py", cases_dir],
+            ["-m", "blindsight.servers.case_mcp", cases_dir],
             logger,
         ) as case_session:
             create_result = await call_tool(

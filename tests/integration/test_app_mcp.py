@@ -4,7 +4,6 @@ Connects to the server via stdio subprocess and verifies tool responses.
 """
 import json
 import logging
-import os
 
 import pytest
 
@@ -14,15 +13,13 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from tests.conftest import FIXTURES_DIR
 
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _SCENARIO = str(FIXTURES_DIR / "account_substitution_baseline")
 
 
 async def _connect():
     server_params = StdioServerParameters(
         command="python",
-        args=[f"{_PROJECT_ROOT}/src/servers/app_mcp.py", _SCENARIO],
-        env={**os.environ, "PYTHONPATH": _PROJECT_ROOT},
+        args=["-m", "blindsight.servers.app_mcp", _SCENARIO],
     )
     return stdio_client(server_params)
 
