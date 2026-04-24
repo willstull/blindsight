@@ -248,7 +248,7 @@ class TestFollowUpTools:
         cases_dir = tempfile.mkdtemp(prefix="blindsight_test_discover_")
 
         # Create a case via case server directly
-        from src.services.investigation.mcp_client import open_mcp_session, call_tool
+        from blindsight.services.investigation.mcp_client import open_mcp_session, call_tool
         import logging
         logger = logging.getLogger("test_discover")
         logger.setLevel(logging.WARNING)

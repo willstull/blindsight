@@ -10,12 +10,12 @@ from typing import Optional
 
 from mcp.server import FastMCP
 
-from src.types.core import TimeRange
-from src.types.integration import DomainIntegration
-from src.utils.coverage import build_coverage_report
-from src.utils.mcp_envelope import build_envelope, build_error_envelope
-from src.utils.ulid import generate_ulid
-from src.utils.validator import validate_limit, validate_time_range
+from blindsight.types.core import TimeRange
+from blindsight.types.integration import DomainIntegration
+from blindsight.utils.coverage import build_coverage_report
+from blindsight.utils.mcp_envelope import build_envelope, build_error_envelope
+from blindsight.utils.ulid import generate_ulid
+from blindsight.utils.validator import validate_limit, validate_time_range
 
 _DOMAIN = "identity"
 
@@ -273,10 +273,10 @@ def create_identity_server(
 
 
 if __name__ == "__main__":
-    from src.utils.logging import get_stderr_logger
+    from blindsight.utils.logging import get_stderr_logger
 
     if len(sys.argv) < 2:
-        print("Usage: python -m src.servers.identity_mcp <scenario_path>", file=sys.stderr)
+        print("Usage: python -m blindsight.servers.identity_mcp <scenario_path>", file=sys.stderr)
         sys.exit(1)
 
     scenario_path = Path(sys.argv[1])
@@ -286,7 +286,7 @@ if __name__ == "__main__":
 
     log = get_stderr_logger("identity_mcp")
 
-    from src.services.identity.factory import create_identity_integration, IntegrationMode
+    from blindsight.services.identity.factory import create_identity_integration, IntegrationMode
 
     integration = create_identity_integration(
         mode=IntegrationMode.REPLAY,

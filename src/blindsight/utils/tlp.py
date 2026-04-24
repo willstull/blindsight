@@ -1,5 +1,5 @@
 """TLP (Traffic Light Protocol) policy helpers."""
-from src.types.core import TLPLevel, TLP_ORDER
+from blindsight.types.core import TLPLevel, TLP_ORDER
 
 
 def normalize_tlp(value: str | None, default: TLPLevel = "AMBER") -> TLPLevel:

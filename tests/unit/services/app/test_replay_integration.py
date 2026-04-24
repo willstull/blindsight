@@ -5,8 +5,8 @@ Uses account_substitution_baseline app fixtures.
 """
 import pytest
 
-from src.services.app.replay_integration import ReplayAppIntegration
-from src.types.core import TimeRange
+from blindsight.services.app.replay_integration import ReplayAppIntegration
+from blindsight.types.core import TimeRange
 from tests.conftest import get_test_logger, FIXTURES_DIR
 
 

@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from src.utils.coverage import determine_response_status
-from src.services.identity.replay_integration import ReplayIdentityIntegration
-from src.types.core import TimeRange
+from blindsight.utils.coverage import determine_response_status
+from blindsight.services.identity.replay_integration import ReplayIdentityIntegration
+from blindsight.types.core import TimeRange
 from tests.conftest import ALL_SCENARIO_NAMES, get_test_logger, scenario_path_for
 
 

@@ -9,12 +9,12 @@ from pathlib import Path
 
 from mcp.server import FastMCP
 
-from src.types.core import TimeRange
-from src.types.integration import DomainIntegration
-from src.utils.coverage import build_coverage_report
-from src.utils.mcp_envelope import build_envelope, build_error_envelope
-from src.utils.ulid import generate_ulid
-from src.utils.validator import validate_limit, validate_time_range
+from blindsight.types.core import TimeRange
+from blindsight.types.integration import DomainIntegration
+from blindsight.utils.coverage import build_coverage_report
+from blindsight.utils.mcp_envelope import build_envelope, build_error_envelope
+from blindsight.utils.ulid import generate_ulid
+from blindsight.utils.validator import validate_limit, validate_time_range
 
 _DOMAIN = "app"
 
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     log.addHandler(handler)
 
     if len(sys.argv) < 2:
-        log.error("Usage: python -m src.servers.app_mcp <scenario_path>")
+        log.error("Usage: python -m blindsight.servers.app_mcp <scenario_path>")
         sys.exit(1)
 
     scenario_path = Path(sys.argv[1])
@@ -216,8 +216,8 @@ if __name__ == "__main__":
         log.error(f"Scenario path does not exist: {scenario_path}")
         sys.exit(1)
 
-    from src.services.app.factory import create_app_integration
-    from src.services.identity.factory import IntegrationMode
+    from blindsight.services.app.factory import create_app_integration
+    from blindsight.services.identity.factory import IntegrationMode
 
     integration = create_app_integration(
         mode=IntegrationMode.REPLAY,

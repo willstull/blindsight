@@ -5,7 +5,7 @@ ReportProse holds optional LLM-generated narrative sections.
 """
 from dataclasses import dataclass, field
 
-from src.types.core import ScoreBand, GapAssessment, TLPLevel
+from blindsight.types.core import ScoreBand, GapAssessment, TLPLevel
 
 
 @dataclass(frozen=True)

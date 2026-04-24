@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from src.types.integration import DomainIntegration
+from blindsight.types.integration import DomainIntegration
 
 
 class IntegrationMode(Enum):
@@ -27,7 +27,7 @@ def create_identity_integration(
         logger: Logger instance
     """
     if mode == IntegrationMode.REPLAY:
-        from src.services.identity.replay_integration import ReplayIdentityIntegration
+        from blindsight.services.identity.replay_integration import ReplayIdentityIntegration
         return ReplayIdentityIntegration(
             scenario_path=Path(config["scenario_path"]),
             logger=logger,

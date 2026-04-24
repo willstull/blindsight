@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from src.services.identity.replay_integration import ReplayIdentityIntegration
-from src.services.case.store import open_case_db, create_case
+from blindsight.services.identity.replay_integration import ReplayIdentityIntegration
+from blindsight.services.case.store import open_case_db, create_case
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "replay" / "scenarios"
 

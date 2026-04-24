@@ -8,11 +8,11 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from src.servers.identity_mcp import create_identity_server
-from src.utils.mcp_envelope import build_envelope
-from src.services.identity.replay_integration import ReplayIdentityIntegration
-from src.types.core import TimeRange
-from src.utils.ulid import generate_ulid
+from blindsight.servers.identity_mcp import create_identity_server
+from blindsight.utils.mcp_envelope import build_envelope
+from blindsight.services.identity.replay_integration import ReplayIdentityIntegration
+from blindsight.types.core import TimeRange
+from blindsight.utils.ulid import generate_ulid
 from tests.conftest import get_test_logger, scenario_path_for
 
 CONTRACT_PATH = Path(__file__).parent.parent.parent / "docs" / "spec" / "identity-domain-contract.json"

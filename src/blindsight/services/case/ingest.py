@@ -9,13 +9,13 @@ from datetime import datetime, timezone
 
 import duckdb
 
-from src.services.case.json_helpers import to_json
-from src.types.core import (
+from blindsight.services.case.json_helpers import to_json
+from blindsight.types.core import (
     Entity, ActionEvent, Relationship, CoverageReport,
     EvidenceItem, Claim, Assumption, Hypothesis,
 )
-from src.types.result import Result, Ok, Err
-from src.utils.ulid import generate_ulid
+from blindsight.types.result import Result, Ok, Err
+from blindsight.utils.ulid import generate_ulid
 
 
 def _now_ts() -> str:
@@ -471,7 +471,7 @@ def ingest_domain_response(
         if raw_metadata:
             if case_id is None:
                 return Err(ValueError("case_metadata requires case_id parameter"))
-            from src.services.case.store import update_case_metadata
+            from blindsight.services.case.store import update_case_metadata
             result = update_case_metadata(logger, conn, case_id, raw_metadata)
             if result.is_err():
                 return Err(result.err())

@@ -1,7 +1,7 @@
 """Unit tests for focal entity resolution."""
 import pytest
 
-from src.services.investigation.focal import resolve_focal_principals, FocalResult
+from blindsight.services.investigation.focal import resolve_focal_principals, FocalResult
 
 
 def _principal(pid: str, display_name: str = "", refs: list | None = None):

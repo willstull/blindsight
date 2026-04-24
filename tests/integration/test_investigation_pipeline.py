@@ -13,10 +13,10 @@ import pytest
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-from src.services.investigation.mcp_client import open_mcp_session, call_tool
+from blindsight.services.investigation.mcp_client import open_mcp_session, call_tool
 from functools import partial
 
-from src.services.investigation.pipeline import run_investigation as _run_investigation
+from blindsight.services.investigation.pipeline import run_investigation as _run_investigation
 from tests.conftest import FIXTURES_DIR
 
 # Tests run without LLM -- deterministic and no API key required

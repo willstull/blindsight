@@ -13,10 +13,10 @@ from typing import Optional
 
 from mcp.server import FastMCP
 
-from src.services.investigation.mcp_client import open_mcp_session, call_tool
-from src.services.investigation.pipeline import run_investigation
-from src.types.core import TimeRange
-from src.utils.serialization import load_yaml
+from blindsight.services.investigation.mcp_client import open_mcp_session, call_tool
+from blindsight.services.investigation.pipeline import run_investigation
+from blindsight.types.core import TimeRange
+from blindsight.utils.serialization import load_yaml
 
 
 _SCENARIOS_DIR = Path(__file__).parent.parent.parent / "tests" / "fixtures" / "replay" / "scenarios"
@@ -410,7 +410,7 @@ def create_investigation_server(
 
         Returns a dict with 'report' (Markdown string) and 'facts_summary'.
         """
-        from src.services.investigation.reporting import (
+        from blindsight.services.investigation.reporting import (
             build_report_facts, render_report, generate_report_prose,
         )
 
@@ -470,7 +470,7 @@ def create_investigation_server(
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
-    from src.utils.logging import get_stderr_logger
+    from blindsight.utils.logging import get_stderr_logger
 
     load_dotenv()
     log = get_stderr_logger("investigation_mcp")

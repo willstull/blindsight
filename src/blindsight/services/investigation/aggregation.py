@@ -6,8 +6,8 @@ sequences, and action bursts.
 """
 from pydantic import BaseModel, Field
 
-from src.services.investigation.resolution import build_target_to_principal_map
-from src.utils.time import within_minutes
+from blindsight.services.investigation.resolution import build_target_to_principal_map
+from blindsight.utils.time import within_minutes
 
 
 class EvidenceFact(BaseModel):
@@ -264,7 +264,7 @@ def _emit_burst(facts: list[EvidenceFact], action: str, cluster: list[dict]) -> 
 def _minutes_between(ts1: str, ts2: str) -> int:
     """Compute minutes between two timestamps, or 0 on failure."""
     try:
-        from src.utils.time import parse_rfc3339
+        from blindsight.utils.time import parse_rfc3339
         t1 = parse_rfc3339(ts1)
         t2 = parse_rfc3339(ts2)
         return int(abs((t2 - t1).total_seconds()) / 60)

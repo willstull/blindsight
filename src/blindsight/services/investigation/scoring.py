@@ -7,14 +7,14 @@ superadmin_escalation, account_substitution).
 import re
 from dataclasses import dataclass
 
-from src.services.investigation.focal import FocalResult
-from src.services.investigation.resolution import build_target_to_principal_map
-from src.types.core import (
+from blindsight.services.investigation.focal import FocalResult
+from blindsight.services.investigation.resolution import build_target_to_principal_map
+from blindsight.types.core import (
     Claim, CoverageObservation, EvidenceItem, GapAssessment,
     Hypothesis, Ref, ScoreBand, TimeRange,
 )
-from src.utils.time import within_minutes
-from src.utils.ulid import generate_ulid
+from blindsight.utils.time import within_minutes
+from blindsight.utils.ulid import generate_ulid
 
 
 # ---------------------------------------------------------------------------

@@ -4,8 +4,8 @@ from typing import Optional
 
 import duckdb
 
-from src.services.case.json_helpers import from_json
-from src.types.result import Result, Ok, Err
+from blindsight.services.case.json_helpers import from_json
+from blindsight.types.result import Result, Ok, Err
 
 # JSON columns per table that need from_json() parsing
 _ENTITY_JSON_COLS = ("refs", "attributes")
@@ -325,7 +325,7 @@ def get_report_facts(
     """
     try:
         # Case metadata
-        from src.services.case.store import get_case
+        from blindsight.services.case.store import get_case
         case_result = get_case(logger, conn, case_id)
         if case_result.is_err():
             return Err(case_result.err())

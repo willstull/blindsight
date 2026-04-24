@@ -11,16 +11,16 @@ from prompt_toolkit import prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.shortcuts import radiolist_dialog
 
-from src.services.identity.replay_integration import ReplayIdentityIntegration
-from src.utils.mcp_envelope import build_envelope
-from src.services.case.store import open_case_db, create_case
-from src.services.case.ingest import ingest_domain_response, record_tool_call
-from src.services.case.query import (
+from blindsight.services.identity.replay_integration import ReplayIdentityIntegration
+from blindsight.utils.mcp_envelope import build_envelope
+from blindsight.services.case.store import open_case_db, create_case
+from blindsight.services.case.ingest import ingest_domain_response, record_tool_call
+from blindsight.services.case.query import (
     query_events, query_neighbors, get_timeline, get_tool_call_history,
 )
-from src.types.core import TimeRange
-from src.utils.ulid import generate_ulid
-from src.utils.serialization import load_yaml
+from blindsight.types.core import TimeRange
+from blindsight.utils.ulid import generate_ulid
+from blindsight.utils.serialization import load_yaml
 
 SCENARIOS_DIR = Path(__file__).parent.parent / "tests" / "fixtures" / "replay" / "scenarios"
 

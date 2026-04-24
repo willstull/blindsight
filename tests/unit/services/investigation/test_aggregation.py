@@ -1,7 +1,7 @@
 """Unit tests for evidence aggregation functions."""
 import pytest
 
-from src.services.investigation.aggregation import (
+from blindsight.services.investigation.aggregation import (
     aggregate_evidence,
     _aggregate_lifecycle_chains,
     _aggregate_shared_indicators,

@@ -13,9 +13,9 @@ Architecture:
 """
 from datetime import datetime, timezone
 
-from src.types.core import GapAssessment
-from src.types.report import ReportFacts, ReportImpact, ReportProse
-from src.utils.tlp import max_tlp
+from blindsight.types.core import GapAssessment
+from blindsight.types.report import ReportFacts, ReportImpact, ReportProse
+from blindsight.utils.tlp import max_tlp
 
 
 # Transaction actions used for impact computation

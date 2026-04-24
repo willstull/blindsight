@@ -4,13 +4,13 @@ import json
 import pytest
 
 from tests.conftest import get_test_logger
-from src.services.case.ingest import (
+from blindsight.services.case.ingest import (
     ingest_entities, ingest_events, ingest_relationships,
     ingest_coverage_report, ingest_domain_response, record_tool_call,
     ingest_evidence_items, ingest_claims, ingest_assumptions, ingest_hypotheses,
 )
-from src.services.case.json_helpers import from_json
-from src.types.core import (
+from blindsight.services.case.json_helpers import from_json
+from blindsight.types.core import (
     Entity, ActionEvent, Relationship, CoverageReport,
     Actor, Target, Ref, TimeRange, SourceStatus,
     EvidenceItem, Claim, Assumption, Hypothesis,

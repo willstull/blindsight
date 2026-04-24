@@ -11,14 +11,14 @@ from typing import Optional
 
 from mcp.server import FastMCP
 
-from src.services.case.store import open_case_db, create_case, get_case
-from src.services.case.ingest import ingest_domain_response, record_tool_call
-from src.services.case.query import (
+from blindsight.services.case.store import open_case_db, create_case, get_case
+from blindsight.services.case.ingest import ingest_domain_response, record_tool_call
+from blindsight.services.case.query import (
     query_entities, query_events, query_neighbors,
     get_timeline, get_tool_call_history, get_report_facts,
 )
-from src.types.core import CoverageReport, TimeRange, SourceStatus
-from src.utils.ulid import generate_ulid
+from blindsight.types.core import CoverageReport, TimeRange, SourceStatus
+from blindsight.utils.ulid import generate_ulid
 
 
 _CASE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
@@ -414,10 +414,10 @@ def create_case_server(cases_dir: Path, logger: logging.Logger) -> FastMCP:
 
 
 if __name__ == "__main__":
-    from src.utils.logging import get_stderr_logger
+    from blindsight.utils.logging import get_stderr_logger
 
     if len(sys.argv) < 2:
-        print("Usage: python -m src.servers.case_mcp <cases_dir>", file=sys.stderr)
+        print("Usage: python -m blindsight.servers.case_mcp <cases_dir>", file=sys.stderr)
         sys.exit(1)
 
     cases_dir = Path(sys.argv[1])

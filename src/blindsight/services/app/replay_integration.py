@@ -6,7 +6,7 @@ All 7 core contract methods are inherited from the base class.
 import logging
 from pathlib import Path
 
-from src.services.replay.domain_integration import ReplayDomainIntegration
+from blindsight.services.replay.domain_integration import ReplayDomainIntegration
 
 
 class ReplayAppIntegration(ReplayDomainIntegration):

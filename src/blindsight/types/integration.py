@@ -6,8 +6,8 @@ Metadata methods return dict. Evidence methods return IntegrationResult.
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from src.types.core import TimeRange
-from src.types.envelope import IntegrationResult
+from blindsight.types.core import TimeRange
+from blindsight.types.envelope import IntegrationResult
 
 
 class DomainIntegration(ABC):

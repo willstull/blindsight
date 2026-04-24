@@ -10,10 +10,10 @@ import time
 from contextlib import AsyncExitStack
 from pathlib import Path
 
-from src.services.investigation.aggregation import aggregate_evidence
-from src.services.investigation.focal import resolve_focal_principals
-from src.services.investigation.mcp_client import open_mcp_session, call_tool
-from src.services.investigation.scoring import (
+from blindsight.services.investigation.aggregation import aggregate_evidence
+from blindsight.services.investigation.focal import resolve_focal_principals
+from blindsight.services.investigation.mcp_client import open_mcp_session, call_tool
+from blindsight.services.investigation.scoring import (
     build_evidence_items,
     build_claims,
     build_hypothesis,
@@ -24,11 +24,11 @@ from src.services.investigation.scoring import (
     score_confidence_from_gaps,
     NarrativeResult,
 )
-from src.types.core import (
+from blindsight.types.core import (
     CoverageObservation, GapAssessment,
     InvestigationReport, InvestigationStep, TimeRange,
 )
-from src.utils.serialization import load_yaml
+from blindsight.utils.serialization import load_yaml
 
 
 _PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent)

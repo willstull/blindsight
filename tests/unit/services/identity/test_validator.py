@@ -1,7 +1,7 @@
 """Unit tests for identity domain validators."""
 import pytest
 from tests.conftest import get_test_logger
-from src.utils.validator import (
+from blindsight.utils.validator import (
     validate_time_range,
     validate_entity_id,
     validate_limit,

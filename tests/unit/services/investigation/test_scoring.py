@@ -1,9 +1,9 @@
 """Unit tests for scoring claim builders and hypothesis construction."""
 import pytest
 
-from src.services.investigation.focal import FocalResult
-from src.services.investigation.aggregation import EvidenceFact
-from src.services.investigation.scoring import (
+from blindsight.services.investigation.focal import FocalResult
+from blindsight.services.investigation.aggregation import EvidenceFact
+from blindsight.services.investigation.scoring import (
     build_claims,
     build_hypothesis,
     build_evidence_items,
@@ -31,7 +31,7 @@ from src.services.investigation.scoring import (
     FAILED_OUTCOME,
     COVERAGE_GAP,
 )
-from src.types.core import CoverageObservation, GapAssessment, TimeRange
+from blindsight.types.core import CoverageObservation, GapAssessment, TimeRange
 
 
 _TIME_RANGE = TimeRange(start="2026-01-01T00:00:00Z", end="2026-01-31T23:59:59Z")
@@ -577,7 +577,7 @@ class TestLikelihoodBandMapping:
     """Test score_likelihood() directly with various claim sets."""
 
     def _claim(self, polarity="supports", confidence=0.85, category="test"):
-        from src.types.core import Claim
+        from blindsight.types.core import Claim
         return Claim(
             id="test",
             tlp="AMBER",

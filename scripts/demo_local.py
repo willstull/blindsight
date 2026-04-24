@@ -23,17 +23,17 @@ from scripts._investigation import (
     heading, step, narrate, load_manifest,
     discover_scenarios, select_scenarios, investigate,
 )
-from src.services.case.ingest import (
+from blindsight.services.case.ingest import (
     ingest_evidence_items, ingest_claims, ingest_hypotheses,
 )
-from src.services.case.json_helpers import from_json
-from src.services.investigation.focal import FocalResult
-from src.services.investigation.scoring import (
+from blindsight.services.case.json_helpers import from_json
+from blindsight.services.investigation.focal import FocalResult
+from blindsight.services.investigation.scoring import (
     build_evidence_items as _build_evidence_items_raw,
     build_claims as _build_claims_raw,
     build_hypothesis as _build_hypothesis_raw,
 )
-from src.types.core import TimeRange
+from blindsight.types.core import TimeRange
 
 
 def _build_evidence_items(cred_events, cov_envelope, manifest):

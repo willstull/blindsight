@@ -2,7 +2,7 @@
 import pytest
 
 from tests.conftest import get_test_logger
-from src.services.case.store import open_case_db, ensure_schema, create_case, get_case, CURRENT_SCHEMA_VERSION, _verified_paths
+from blindsight.services.case.store import open_case_db, ensure_schema, create_case, get_case, CURRENT_SCHEMA_VERSION, _verified_paths
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ class TestEnsureSchema:
             call_count += 1
             return original_ensure(log, conn)
 
-        monkeypatch.setattr("src.services.case.store.ensure_schema", counting_ensure)
+        monkeypatch.setattr("blindsight.services.case.store.ensure_schema", counting_ensure)
 
         # First open -- should call ensure_schema
         r1 = open_case_db(logger, db_path)

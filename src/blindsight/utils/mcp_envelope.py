@@ -1,7 +1,7 @@
 """Shared MCP response envelope builders for domain servers."""
-from src.utils.coverage import determine_response_status
-from src.types.envelope import IntegrationResult, ResponseEnvelope
-from src.types.errors import PipelineError
+from blindsight.utils.coverage import determine_response_status
+from blindsight.types.envelope import IntegrationResult, ResponseEnvelope
+from blindsight.types.errors import PipelineError
 
 
 def build_envelope(

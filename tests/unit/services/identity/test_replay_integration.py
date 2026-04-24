@@ -1,7 +1,7 @@
 """Unit tests for ReplayIdentityIntegration."""
 import pytest
 
-from src.types.core import TimeRange
+from blindsight.types.core import TimeRange
 from tests.conftest import get_test_logger
 
 

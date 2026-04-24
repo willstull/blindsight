@@ -1,12 +1,12 @@
 """Unit tests for coverage report generation."""
 import pytest
 from tests.conftest import get_test_logger
-from src.utils.coverage import (
+from blindsight.utils.coverage import (
     build_coverage_report,
     build_limitations,
     determine_response_status,
 )
-from src.types.core import TimeRange
+from blindsight.types.core import TimeRange
 
 
 @pytest.fixture

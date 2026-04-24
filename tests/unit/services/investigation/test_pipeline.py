@@ -3,12 +3,12 @@
 Tests for _coverage_observations_from_response(),
 _build_gap_assessment_prompt(), and _merge_coverage_envelopes().
 """
-from src.services.investigation.pipeline import (
+from blindsight.services.investigation.pipeline import (
     _coverage_observations_from_response,
     _build_gap_assessment_prompt,
     _merge_coverage_envelopes,
 )
-from src.types.core import CoverageObservation, GapAssessment
+from blindsight.types.core import CoverageObservation, GapAssessment
 
 
 class TestCoverageObservationsFromResponse:
@@ -95,7 +95,7 @@ class TestGapAssessmentPrompt:
     """Test _build_gap_assessment_prompt() contract."""
 
     def _make_claim(self, polarity="supports", statement="Test claim", confidence=0.8):
-        from src.types.core import Claim
+        from blindsight.types.core import Claim
         return Claim(
             id="c1", tlp="AMBER", statement=statement,
             polarity=polarity, confidence=confidence, category="test",

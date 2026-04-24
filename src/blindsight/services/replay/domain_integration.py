@@ -9,21 +9,21 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
-from src.utils.coverage import (
+from blindsight.utils.coverage import (
     build_coverage_report,
     build_limitations,
 )
-from src.types.core import (
+from blindsight.types.core import (
     ActionEvent,
     CoverageReport,
     Entity,
     Relationship,
     TimeRange,
 )
-from src.types.envelope import IntegrationResult
-from src.types.integration import DomainIntegration
-from src.utils.serialization import load_ndjson, load_yaml
-from src.utils.time import is_within_range
+from blindsight.types.envelope import IntegrationResult
+from blindsight.types.integration import DomainIntegration
+from blindsight.utils.serialization import load_ndjson, load_yaml
+from blindsight.utils.time import is_within_range
 
 
 class ReplayDomainIntegration(DomainIntegration):

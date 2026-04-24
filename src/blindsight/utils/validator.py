@@ -2,9 +2,9 @@
 import logging
 from typing import Optional
 
-from src.types.core import TimeRange
-from src.types.errors import ValidationIssue
-from src.types.result import Result, Ok, Err
+from blindsight.types.core import TimeRange
+from blindsight.types.errors import ValidationIssue
+from blindsight.types.result import Result, Ok, Err
 
 MAX_TIME_RANGE_DAYS = 90
 MAX_LIMIT = 2000
@@ -17,7 +17,7 @@ def validate_time_range(
     max_days: int = MAX_TIME_RANGE_DAYS,
 ) -> Result[TimeRange, ValidationIssue]:
     """Validate and parse a time range from RFC3339 strings."""
-    from src.utils.time import parse_rfc3339
+    from blindsight.utils.time import parse_rfc3339
 
     if not start or not end:
         return Err(ValidationIssue(

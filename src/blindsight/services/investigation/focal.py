@@ -7,7 +7,7 @@ and optional hints.
 import re
 from pydantic import BaseModel, Field
 
-from src.services.investigation.resolution import build_target_to_principal_map
+from blindsight.services.investigation.resolution import build_target_to_principal_map
 
 
 class FocalResult(BaseModel):

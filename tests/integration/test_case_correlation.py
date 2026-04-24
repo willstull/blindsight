@@ -6,12 +6,12 @@ Uses the baseline replay scenario fixture data.
 import pytest
 
 from tests.conftest import get_test_logger
-from src.services.case.store import open_case_db, create_case
-from src.services.case.ingest import ingest_domain_response, record_tool_call
-from src.services.case.query import (
+from blindsight.services.case.store import open_case_db, create_case
+from blindsight.services.case.ingest import ingest_domain_response, record_tool_call
+from blindsight.services.case.query import (
     query_entities, query_events, query_neighbors, get_timeline, get_tool_call_history,
 )
-from src.types.core import (
+from blindsight.types.core import (
     Entity, ActionEvent, Relationship, CoverageReport,
     Actor, Target, Ref, TimeRange, SourceStatus,
 )

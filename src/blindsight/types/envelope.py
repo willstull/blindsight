@@ -7,8 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from src.types.core import Entity, ActionEvent, Relationship, CoverageReport
-from src.types.errors import PipelineError
+from blindsight.types.core import Entity, ActionEvent, Relationship, CoverageReport
+from blindsight.types.errors import PipelineError
 
 
 class IntegrationResult(BaseModel):

@@ -1,11 +1,11 @@
 """Tests for incident report generation service."""
 import pytest
 
-from src.types.report import ReportFacts, ReportImpact, ReportProse
-from src.services.investigation.reporting import (
+from blindsight.types.report import ReportFacts, ReportImpact, ReportProse
+from blindsight.services.investigation.reporting import (
     render_report, compute_impact, build_report_facts,
 )
-from src.types.core import GapAssessment
+from blindsight.types.core import GapAssessment
 
 
 def _make_facts(**overrides) -> ReportFacts:
@@ -322,30 +322,30 @@ class TestRenderReport:
 
 class TestClaimStrength:
     def test_strong(self):
-        from src.services.investigation.reporting import claim_strength
+        from blindsight.services.investigation.reporting import claim_strength
         assert claim_strength(0.9) == "strong"
         assert claim_strength(0.85) == "strong"
 
     def test_moderate(self):
-        from src.services.investigation.reporting import claim_strength
+        from blindsight.services.investigation.reporting import claim_strength
         assert claim_strength(0.7) == "moderate"
         assert claim_strength(0.65) == "moderate"
 
     def test_weak(self):
-        from src.services.investigation.reporting import claim_strength
+        from blindsight.services.investigation.reporting import claim_strength
         assert claim_strength(0.5) == "weak"
         assert claim_strength(0.0) == "weak"
 
 
 class TestMigrationDiscovery:
     def test_discover_migrations(self):
-        from src.services.case.store import _discover_migrations
+        from blindsight.services.case.store import _discover_migrations
         migrations = _discover_migrations()
         versions = [v for v, _ in migrations]
         assert versions == [1, 2, 3]
 
     def test_migration_files_exist(self):
-        from src.services.case.store import _MIGRATIONS_DIR
+        from blindsight.services.case.store import _MIGRATIONS_DIR
         assert (_MIGRATIONS_DIR / "001_initial.sql").exists()
         assert (_MIGRATIONS_DIR / "002_categorical_scoring.sql").exists()
         assert (_MIGRATIONS_DIR / "003_investigation_metadata.sql").exists()
@@ -362,7 +362,7 @@ class TestMigrationDiscovery:
 class TestUpdateCaseMetadata:
     def test_update_and_retrieve(self, case_db):
         from tests.conftest import get_test_logger
-        from src.services.case.store import update_case_metadata, get_case
+        from blindsight.services.case.store import update_case_metadata, get_case
 
         logger = get_test_logger()
         metadata = {

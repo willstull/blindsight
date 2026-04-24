@@ -6,9 +6,9 @@ from typing import Optional
 
 import duckdb
 
-from src.services.case.json_helpers import to_json, from_json
-from src.types.result import Result, Ok, Err
-from src.utils.ulid import generate_ulid
+from blindsight.services.case.json_helpers import to_json, from_json
+from blindsight.types.result import Result, Ok, Err
+from blindsight.utils.ulid import generate_ulid
 
 _MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 

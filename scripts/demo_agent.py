@@ -42,7 +42,7 @@ from scripts._investigation import (
     discover_scenarios, select_scenarios,
     DIVIDER, SECTION,
 )
-from src.types.core import InvestigationStep, InvestigationReport
+from blindsight.types.core import InvestigationStep, InvestigationReport
 
 
 # -- System prompt --
@@ -147,7 +147,7 @@ async def run_agent_investigation(scenario_path: Path) -> InvestigationReport:
     cases_dir.mkdir(exist_ok=True)
     has_app_domain = "app" in manifest.get("domains", [])
 
-    # MCP servers need PYTHONPATH set so `from src...` imports resolve
+    # MCP servers need PYTHONPATH set so `from blindsight...` imports resolve
     server_env = {**os.environ, "PYTHONPATH": project_root}
 
     identity_server = MCPServerStdio(

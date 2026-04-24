@@ -2,8 +2,8 @@
 import logging
 from typing import Optional
 
-from src.types.core import CoverageReport, SourceStatus, TimeRange
-from src.utils.ulid import generate_ulid
+from blindsight.types.core import CoverageReport, SourceStatus, TimeRange
+from blindsight.utils.ulid import generate_ulid
 
 
 def build_coverage_report(
