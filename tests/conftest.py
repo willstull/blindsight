@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 
+import blindsight
 from blindsight.services.identity.replay_integration import ReplayIdentityIntegration
 from blindsight.services.case.store import open_case_db, create_case
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures" / "replay" / "scenarios"
+FIXTURES_DIR = Path(blindsight.__file__).parent / "scenarios"
 
 
 def get_test_logger() -> logging.Logger:

@@ -11,6 +11,7 @@ import pytest
 
 from functools import partial
 
+import blindsight
 from blindsight.services.investigation.pipeline import run_investigation as _run_investigation
 
 # Tests run without LLM -- deterministic and no API key required
@@ -23,7 +24,7 @@ from blindsight.services.case.query import (
 from blindsight.services.investigation.reporting import build_report_facts, render_report
 
 
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "replay" / "scenarios"
+FIXTURES_DIR = Path(blindsight.__file__).parent / "scenarios"
 
 
 def _logger():

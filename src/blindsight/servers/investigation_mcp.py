@@ -18,7 +18,7 @@ from blindsight.types.core import TimeRange
 from blindsight.utils.serialization import load_yaml
 
 
-_SCENARIOS_DIR = Path(__file__).parent.parent.parent.parent / "tests" / "fixtures" / "replay" / "scenarios"
+_SCENARIOS_DIR = Path(__file__).parent.parent / "scenarios"
 _PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent)
 _CASE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
 
