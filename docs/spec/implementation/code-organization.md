@@ -429,7 +429,7 @@ def search_events_tool(
     request_id = generate_ulid()
     logger = logger.bind(request_id=request_id)  # Enrich logger
 
-    scenario_path = Path("tests/fixtures/replay/scenarios/baseline")
+    scenario_path = Path("src/blindsight/scenarios/credential_change_baseline")
 
     # Parse time range
     time_range = TimeRange(

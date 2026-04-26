@@ -117,32 +117,28 @@ No replay fixtures - integration makes real HTTP requests during test execution.
 ## Directory Layout
 
 ```
-tests/fixtures/replay/
-├── scenarios/
-│   ├── credential_change_baseline/
-│   │   ├── manifest.yaml                    # Scenario metadata
-│   │   ├── domains/
-│   │   │   └── identity/
-│   │   │       ├── entities.ndjson         # Entity catalog
-│   │   │       ├── events.ndjson           # Event stream
-│   │   │       ├── relationships.ndjson    # Relationship edges
-│   │   │       └── coverage.yaml           # Coverage metadata
-│   │   └── expected_output.json            # Golden output
-│   │
-│   ├── credential_change_degraded/
-│   │   ├── manifest.yaml                    # Same scenario, degraded
-│   │   ├── domains/
-│   │   │   └── identity/
-│   │   │       ├── entities.ndjson
-│   │   │       ├── events.ndjson           # ← Fewer events (gap)
-│   │   │       └── coverage.yaml           # ← overall_status: "partial"
-│   │   └── expected_output.json            # ← Lower confidence limit
-│   │
-│   └── privilege_escalation_baseline/
-│       └── ...
+src/blindsight/scenarios/
+├── credential_change_baseline/
+│   ├── manifest.yaml                    # Scenario metadata
+│   ├── domains/
+│   │   └── identity/
+│   │       ├── entities.ndjson         # Entity catalog
+│   │       ├── events.ndjson           # Event stream
+│   │       ├── relationships.ndjson    # Relationship edges
+│   │       └── coverage.yaml           # Coverage metadata
+│   └── expected_output.json            # Golden output
 │
-└── shared/
-    └── time_normalization.yaml              # Time offset rules
+├── credential_change_degraded/
+│   ├── manifest.yaml                    # Same scenario, degraded
+│   ├── domains/
+│   │   └── identity/
+│   │       ├── entities.ndjson
+│   │       ├── events.ndjson           # ← Fewer events (gap)
+│   │       └── coverage.yaml           # ← overall_status: "partial"
+│   └── expected_output.json            # ← Lower confidence limit
+│
+└── privilege_escalation_baseline/
+    └── ...
 ```
 
 ---
@@ -471,7 +467,7 @@ return {
 **Solution**: Offset timestamps to "now" during replay.
 
 ```yaml
-# tests/fixtures/replay/shared/time_normalization.yaml
+# Aspirational: time_normalization.yaml (not yet shipped)
 scenarios:
   credential_change_baseline:
     # Scenario defines time range 2026-01-01 to 2026-01-31
@@ -549,7 +545,7 @@ async def test_scenario_replay(scenario_name: str):
 
 ## Summary: Replay Dataset Contract
 
-**Directory Structure**:
+**Directory Structure** (rooted at `src/blindsight/scenarios/`, importable as `blindsight.scenarios`):
 - `scenarios/{name}/manifest.yaml` - Scenario metadata
 - `scenarios/{name}/domains/{domain}/{entities|events|relationships}.ndjson` - Data
 - `scenarios/{name}/domains/{domain}/coverage.yaml` - Availability metadata

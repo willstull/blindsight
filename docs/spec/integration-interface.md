@@ -463,7 +463,7 @@ def create_identity_integration(
 # Testing: Use replay integration
 integration = create_identity_integration(
     mode=IntegrationMode.REPLAY,
-    config={"data_dir": "tests/fixtures/replay/scenarios/cred_change/domains/identity"}
+    config={"data_dir": "src/blindsight/scenarios/credential_change_baseline/domains/identity"}
 )
 
 # Production: Use live integration (TBD)
@@ -565,7 +565,7 @@ domains:
   identity:
     mode: replay  # or "live"
     replay:
-      data_dir: "tests/fixtures/replay/scenarios/baseline/domains/identity"
+      data_dir: "src/blindsight/scenarios/credential_change_baseline/domains/identity"
     live:
       source: okta
       api_endpoint: "https://dev-12345.okta.com"
