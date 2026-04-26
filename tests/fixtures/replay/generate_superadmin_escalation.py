@@ -12,8 +12,9 @@ import json
 from pathlib import Path
 
 import yaml
+import blindsight
 
-SCENARIOS_DIR = Path(__file__).parent / "scenarios"
+SCENARIOS_DIR = Path(blindsight.__file__).parent / "scenarios"
 
 # ---------- shared entity / relationship definitions ----------
 
