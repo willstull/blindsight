@@ -9,6 +9,7 @@ from pathlib import Path
 
 from mcp.server import FastMCP
 
+from blindsight import MCP_CONTRACT_VERSION
 from blindsight.types.core import TimeRange
 from blindsight.types.integration import DomainIntegration
 from blindsight.utils.coverage import build_coverage_report
@@ -31,7 +32,9 @@ def create_app_server(
     @server.tool()
     async def describe_domain() -> dict:
         """Return app domain capabilities and coverage status."""
-        return await integration.describe_domain()
+        result = await integration.describe_domain()
+        result["contract_version"] = MCP_CONTRACT_VERSION
+        return result
 
     @server.tool()
     async def describe_types() -> dict:

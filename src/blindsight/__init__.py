@@ -1,7 +1,3 @@
-"""Blindsight: agentic incident investigation framework.
-
-This is a placeholder release to reserve the package name on PyPI.
-The full package is under active development at
-https://github.com/willstull/blindsight.
-"""
+"""Blindsight: agentic incident investigation framework."""
 __version__ = "0.0.1"
+MCP_CONTRACT_VERSION = "0.1"
