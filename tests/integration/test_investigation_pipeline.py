@@ -5,6 +5,7 @@ data. Tests are deterministic but slower (~3s each due to subprocess startup).
 """
 import json
 import logging
+import sys
 import tempfile
 
 import pytest
@@ -120,7 +121,7 @@ class TestInvestigationPipeline:
 
         # Open a fresh case server against the same cases_dir and query history
         async with open_mcp_session(
-            "python",
+            sys.executable,
             ["-m", "blindsight.servers.case_mcp", cases_dir],
             logger,
         ) as case_session:

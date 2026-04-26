@@ -4,6 +4,7 @@ Connects to the server via stdio subprocess and verifies tool responses.
 """
 import json
 import logging
+import sys
 
 import pytest
 
@@ -18,7 +19,7 @@ _SCENARIO = str(FIXTURES_DIR / "account_substitution_baseline")
 
 async def _connect():
     server_params = StdioServerParameters(
-        command="python",
+        command=sys.executable,
         args=["-m", "blindsight.servers.app_mcp", _SCENARIO],
     )
     return stdio_client(server_params)

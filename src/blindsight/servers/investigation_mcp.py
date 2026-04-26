@@ -6,6 +6,7 @@ See ADR-0008 for the rationale behind follow-up tools.
 """
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -52,7 +53,7 @@ async def _call_case_tool(
             },
         }
     async with open_mcp_session(
-        "python",
+        sys.executable,
         ["-m", "blindsight.servers.case_mcp", str(cases_dir)],
         logger,
     ) as session:

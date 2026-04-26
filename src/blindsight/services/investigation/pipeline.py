@@ -5,6 +5,7 @@ and a case server as subprocesses, executes a bounded investigation loop, and
 returns an InvestigationReport.
 """
 import logging
+import sys
 import tempfile
 import time
 from contextlib import AsyncExitStack
@@ -341,11 +342,11 @@ async def run_investigation(
     tmp_dir = cases_dir or tempfile.mkdtemp(prefix="blindsight_inv_")
     has_app_domain = "app" in manifest.get("domains", [])
 
-    identity_cmd = "python"
+    identity_cmd = sys.executable
     identity_args = ["-m", "blindsight.servers.identity_mcp", str(scenario_path)]
-    case_cmd = "python"
+    case_cmd = sys.executable
     case_args = ["-m", "blindsight.servers.case_mcp", tmp_dir]
-    app_cmd = "python"
+    app_cmd = sys.executable
     app_args = ["-m", "blindsight.servers.app_mcp", str(scenario_path)]
 
     async with AsyncExitStack() as stack:
