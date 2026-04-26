@@ -5,22 +5,24 @@ tools via FastMCP. Calls identity and case MCP servers as subprocesses.
 See ADR-0008 for the rationale behind follow-up tools.
 """
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Optional
 
 from mcp.server import FastMCP
 
+from blindsight.config import load_config
 from blindsight.services.investigation.mcp_client import open_mcp_session, call_tool
 from blindsight.services.investigation.pipeline import run_investigation
 from blindsight.types.core import TimeRange
 from blindsight.utils.serialization import load_yaml
 
 
-_SCENARIOS_DIR = Path(__file__).parent.parent / "scenarios"
-_PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent)
 _CASE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
+
+
+def _scenarios_dir() -> Path:
+    return load_config().scenarios_dir
 
 
 def _resolve_scenario(scenario_name: str) -> Path | None:
@@ -34,7 +36,7 @@ def _resolve_scenario(scenario_name: str) -> Path | None:
     if as_path.is_dir() and (as_path / "manifest.yaml").exists():
         return as_path
 
-    candidate = _SCENARIOS_DIR / scenario_name
+    candidate = _scenarios_dir() / scenario_name
     if candidate.is_dir() and (candidate / "manifest.yaml").exists():
         return candidate
 
@@ -62,9 +64,10 @@ def _load_manifest(scenario_path: Path) -> dict:
 def _list_scenarios() -> list[dict]:
     """List all available scenarios with basic metadata."""
     scenarios = []
-    if not _SCENARIOS_DIR.is_dir():
+    scenarios_root = _scenarios_dir()
+    if not scenarios_root.is_dir():
         return scenarios
-    for path in sorted(_SCENARIOS_DIR.iterdir()):
+    for path in sorted(scenarios_root.iterdir()):
         if path.is_dir() and (path / "manifest.yaml").exists():
             manifest = _load_manifest(path)
             scenarios.append({
@@ -108,7 +111,7 @@ async def _call_case_tool(
         }
     async with open_mcp_session(
         "python",
-        [f"{_PROJECT_ROOT}/src/blindsight/servers/case_mcp.py", str(cases_dir)],
+        ["-m", "blindsight.servers.case_mcp", str(cases_dir)],
         logger,
     ) as session:
         return await call_tool(session, tool_name, arguments, logger)
@@ -120,11 +123,7 @@ def create_investigation_server(
 ) -> FastMCP:
     """Create and configure the investigation orchestration MCP server."""
     if cases_dir is None:
-        env_dir = os.environ.get("BLINDSIGHT_CASES_DIR")
-        if env_dir:
-            cases_dir = Path(env_dir)
-        else:
-            cases_dir = Path(__file__).parent.parent.parent.parent / ".blindsight_cases"
+        cases_dir = load_config().cases_dir
     cases_dir.mkdir(parents=True, exist_ok=True)
 
     server = FastMCP("blindsight-investigation-mcp")

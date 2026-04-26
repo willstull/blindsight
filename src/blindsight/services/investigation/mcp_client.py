@@ -5,15 +5,10 @@ with identity and case MCP servers as subprocesses.
 """
 import json
 import logging
-import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-
-
-_PROJECT_ROOT = str(Path(__file__).parent.parent.parent.parent.parent)
 
 
 @asynccontextmanager
@@ -25,14 +20,10 @@ async def open_mcp_session(
     """Launch an MCP server subprocess and yield a ClientSession.
 
     Guarantees subprocess teardown even on exceptions.
-    Sets PYTHONPATH to src/ so subprocess `import blindsight` resolves.
     """
-    env = {**os.environ, "PYTHONPATH": f"{_PROJECT_ROOT}/src"}
-
     server_params = StdioServerParameters(
         command=command,
         args=args,
-        env=env,
     )
 
     async with stdio_client(server_params) as (read_stream, write_stream):
