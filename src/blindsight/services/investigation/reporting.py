@@ -11,7 +11,9 @@ Architecture:
   - The report is reproducible from the saved case, not from in-memory
     pipeline state.
 """
+import logging
 from datetime import datetime, timezone
+from pathlib import Path
 
 from blindsight.types.core import GapAssessment
 from blindsight.types.report import ReportFacts, ReportImpact, ReportProse
@@ -668,3 +670,45 @@ def _render_reproducibility_appendix(facts: ReportFacts) -> str:
             )
 
     return "\n".join(lines)
+
+
+async def generate_report_for_case(
+    cases_dir: Path,
+    case_id: str,
+    logger: logging.Logger,
+    use_llm: bool = False,
+    llm_model: str | None = None,
+) -> str:
+    """Generate a Markdown incident report for a saved case.
+
+    Reads facts directly from the case DuckDB file (no MCP subprocess
+    roundtrip), assembles ReportFacts, optionally renders LLM prose, and
+    returns the rendered Markdown.
+
+    Raises FileNotFoundError if no DB exists for case_id, and propagates
+    Result errors from the case store as exceptions for CLI surfacing.
+    """
+    from blindsight.services.case.query import get_report_facts
+    from blindsight.services.case.store import open_case_db
+
+    db_path = cases_dir / f"{case_id}.duckdb"
+    if not db_path.exists():
+        raise FileNotFoundError(f"No case DB found for '{case_id}' at {db_path}")
+
+    conn_result = open_case_db(logger, db_path)
+    if conn_result.is_err():
+        raise conn_result.err()
+    conn = conn_result.ok()
+    try:
+        facts_result = get_report_facts(logger, conn, case_id)
+        if facts_result.is_err():
+            raise facts_result.err()
+        facts = build_report_facts(facts_result.ok())
+    finally:
+        conn.close()
+
+    prose = None
+    if use_llm:
+        prose = await generate_report_prose(facts, model=llm_model)
+
+    return render_report(facts, prose)
