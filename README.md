@@ -40,13 +40,30 @@ See [docs/index.md](docs/index.md) for specifications, architecture decisions, a
 ## Quick start
 
 ```bash
-# Install dependencies
-poetry install
-
-# Run tests
-poetry run pytest -q
-
-# Run an investigation via MCP (requires .env with ANTHROPIC_API_KEY for LLM features)
-# The investigation MCP server is configured in .mcp.json
+pipx install blindsight
+blindsight install
 ```
 
+`blindsight install` writes the investigation MCP server into your Claude Code config (`~/.claude/settings.json` by default; pass `--project` to use `./.mcp.json` instead) and seeds `~/.blindsight/cases/` for case storage. Restart Claude Code to pick up the change.
+
+The bundled replay scenarios are available immediately. Override the scenarios directory with `BLINDSIGHT_SCENARIOS_DIR` and the case store with `BLINDSIGHT_CASES_DIR`. LLM-driven investigations need `ANTHROPIC_API_KEY` in the environment.
+
+CLI usage:
+
+```bash
+blindsight describe-scenario                              # list bundled scenarios
+blindsight describe-scenario credential_change_baseline   # describe one
+blindsight run-investigation credential_change_baseline   # run an investigation
+blindsight generate-report <case-id>                      # render a Markdown report
+```
+
+## Development setup
+
+```bash
+git clone https://github.com/willstull/blindsight
+cd blindsight
+poetry install
+poetry run pytest -q
+```
+
+The investigation MCP server is wired up in this repo's `.mcp.json` for local dev — no separate `blindsight install` step needed when working from the source tree.
