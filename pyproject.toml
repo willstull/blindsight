@@ -1,6 +1,6 @@
 [project]
 name = "blindsight"
-version = "0.0.1"
+version = "0.1.0"
 description = "Agentic incident investigation framework that separates what the evidence suggests from what the data can verify."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -55,8 +55,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/blindsight"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/blindsight/scenarios" = "blindsight/scenarios"
+[tool.check-wheel-contents]
+ignore = ["W002"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
