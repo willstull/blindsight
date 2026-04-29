@@ -1,7 +1,8 @@
 """Blindsight CLI entry point.
 
 Subcommands:
-  install            Wire up the investigation MCP server in Claude Code.
+  install            Register the investigation MCP server with Claude Code.
+  uninstall          Remove the registration; optionally purge data dirs.
   describe-scenario  List bundled scenarios or describe one.
   run-investigation  Run an investigation against a scenario.
   generate-report    Render a Markdown report for a saved case.
@@ -25,11 +26,19 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="blindsight")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    install = sub.add_parser("install", help="Wire up Claude Code MCP config")
+    install = sub.add_parser("install", help="Register the investigation MCP server with Claude Code")
     install.add_argument("--project", action="store_true",
-                         help="Write to ./.mcp.json instead of ~/.claude/settings.json")
+                         help="Use project scope (writes ./.mcp.json) instead of user scope")
     install.add_argument("--dry-run", action="store_true",
-                         help="Print planned writes without touching the filesystem")
+                         help="Print planned actions without invoking claude mcp")
+
+    uninstall = sub.add_parser("uninstall", help="Remove the investigation MCP server registration")
+    uninstall.add_argument("--project", action="store_true",
+                           help="Remove from project scope instead of user scope")
+    uninstall.add_argument("--purge-data", action="store_true",
+                           help="Also delete ~/.blindsight/cases and ~/.blindsight/scenarios")
+    uninstall.add_argument("--dry-run", action="store_true",
+                           help="Print planned actions without invoking claude mcp")
 
     desc = sub.add_parser("describe-scenario", help="List or describe scenarios")
     desc.add_argument("name", nargs="?", default=None,
@@ -64,8 +73,35 @@ def _cmd_install(args: argparse.Namespace) -> int:
         print("\n(dry-run — no changes made)")
         return 0
 
-    apply_install(plan)
+    try:
+        apply_install(plan)
+    except RuntimeError as e:
+        print(f"\nerror: {e}", file=sys.stderr)
+        return 1
     print("\ninstalled. Restart Claude Code to pick up the change.")
+    return 0
+
+
+def _cmd_uninstall(args: argparse.Namespace) -> int:
+    from blindsight.installer import plan_uninstall, apply_uninstall, format_uninstall_plan
+
+    try:
+        plan = plan_uninstall(project_scope=args.project, purge_data=args.purge_data)
+    except RuntimeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    print(format_uninstall_plan(plan))
+    if args.dry_run:
+        print("\n(dry-run — no changes made)")
+        return 0
+
+    try:
+        apply_uninstall(plan)
+    except RuntimeError as e:
+        print(f"\nerror: {e}", file=sys.stderr)
+        return 1
+    print("\nuninstalled. Restart Claude Code to pick up the change.")
     return 0
 
 
@@ -134,6 +170,7 @@ def main() -> None:
     args = parser.parse_args()
     dispatch = {
         "install": _cmd_install,
+        "uninstall": _cmd_uninstall,
         "describe-scenario": _cmd_describe_scenario,
         "run-investigation": _cmd_run_investigation,
         "generate-report": _cmd_generate_report,

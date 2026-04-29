@@ -1,6 +1,6 @@
 [project]
 name = "blindsight"
-version = "0.1.0"
+version = "0.1.1"
 description = "Agentic incident investigation framework that separates what the evidence suggests from what the data can verify."
 readme = "README.md"
 requires-python = ">=3.12"
